@@ -1,5 +1,4 @@
 import axios from "axios";
-import { Capacitor } from "@capacitor/core";
 
 let API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://your-space-name.hf.space";
 if (!API_BASE_URL.endsWith('/api/v1')) {

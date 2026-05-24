@@ -38,7 +38,7 @@ export const metadata: Metadata = {
   },
 };
 
-import { CapacitorProvider } from "@/components/CapacitorProvider";
+
 
 export default function RootLayout({
   children,
@@ -48,9 +48,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="scroll-smooth" suppressHydrationWarning>
       <body suppressHydrationWarning className={`${inter.variable} ${playfair.variable} ${notoSans.variable} font-sans min-h-screen flex flex-col bg-white text-black dark:bg-black dark:text-white antialiased`}>
-        <CapacitorProvider>
-          <ConditionalShell>{children}</ConditionalShell>
-        </CapacitorProvider>
+        <ConditionalShell>{children}</ConditionalShell>
       </body>
     </html>
   );
