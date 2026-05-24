@@ -1,7 +1,7 @@
 import axios from "axios";
 
-let API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://your-space-name.hf.space";
-if (!API_BASE_URL.endsWith('/api/v1')) {
+let API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8001/api/v1";
+if (!API_BASE_URL.endsWith('/api/v1') && API_BASE_URL === "http://localhost:8001") {
   API_BASE_URL = `${API_BASE_URL}/api/v1`;
 }
 
