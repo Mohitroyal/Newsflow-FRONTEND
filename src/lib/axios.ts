@@ -39,7 +39,8 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       // Clear stale auth and redirect to login
       if (typeof window !== "undefined") {
-        localStorage.removeItem("newscraft-auth");
+        const { useAuthStore } = require("@/store");
+        useAuthStore.getState().logout();
         window.location.href = "/login";
       }
     }

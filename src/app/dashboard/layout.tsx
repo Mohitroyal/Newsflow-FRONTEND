@@ -126,7 +126,7 @@ export default function DashboardLayout({
 
   const handleLogout = () => {
     logout();
-    router.push("/");
+    window.location.href = "/";
   };
 
   const sidebarLinks = [
