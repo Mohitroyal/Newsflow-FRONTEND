@@ -1,4 +1,5 @@
 import axios from "axios";
+import { useAuthStore } from "@/store";
 
 let API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8001/api/v1";
 if (!API_BASE_URL.endsWith('/api/v1') && API_BASE_URL === "http://localhost:8001") {
@@ -39,7 +40,6 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       // Clear stale auth and redirect to login
       if (typeof window !== "undefined") {
-        const { useAuthStore } = require("@/store");
         useAuthStore.getState().logout();
         window.location.href = "/login";
       }
