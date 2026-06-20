@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  NewsCraft AI — Network Security Configuration
+  All traffic to production backend and Supabase is HTTPS only.
+  No cleartext HTTP is permitted in production.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <!-- Production backend on Render -->
+        <domain includeSubdomains="true">news-backend-sjw6.onrender.com</domain>
+        <!-- Supabase -->
+        <domain includeSubdomains="true">supabase.co</domain>
+        <domain includeSubdomains="true">rffrqokpnqoycpozrjuc.supabase.co</domain>
+    </domain-config>
+    <!-- Allow cleartext ONLY for local dev (192.168.x.x / 10.x.x.x) -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

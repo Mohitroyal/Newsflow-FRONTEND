@@ -50,7 +50,7 @@ export default function SignupPage() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${process.env.NEXT_PUBLIC_FRONTEND_URL || (typeof window !== "undefined" ? window.location.origin : "")}/auth/callback`,
+          redirectTo: 'https://news-front.vercel.app/auth/callback',
         },
       });
       if (error) throw error;

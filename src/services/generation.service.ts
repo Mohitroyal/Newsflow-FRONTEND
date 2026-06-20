@@ -41,9 +41,7 @@ export const generationService = {
     const formData = new FormData();
     formData.append("file", file);
     
-    const res = await api.post("/uploads/image", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    const res = await api.post("/uploads/image", formData);
     return res.data;
   },
 };

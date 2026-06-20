@@ -1,10 +1,7 @@
 import axios from "axios";
 import { useAuthStore } from "@/store";
 
-let API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8001/api/v1";
-if (!API_BASE_URL.endsWith('/api/v1') && API_BASE_URL === "http://localhost:8001") {
-  API_BASE_URL = `${API_BASE_URL}/api/v1`;
-}
+const API_BASE_URL = "http://localhost:7860/api/v1";
 
 /** Axios instance with default config */
 const api = axios.create({
@@ -15,6 +12,12 @@ const api = axios.create({
 
 // ─── Request Interceptor — Attach JWT ─────────────────────────────────────────
 api.interceptors.request.use((config) => {
+  // If sending FormData, delete the default JSON Content-Type so the browser
+  // can auto-set multipart/form-data with the correct boundary parameter.
+  if (config.data instanceof FormData) {
+    delete config.headers["Content-Type"];
+  }
+
   if (typeof window !== "undefined") {
     const raw = localStorage.getItem("newscraft-auth");
     if (raw) {

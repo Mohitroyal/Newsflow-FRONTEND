@@ -45,8 +45,7 @@ function EditorContent() {
 
             // Masthead Logo
             const brandKey = res.data.logo_id || "bharath_reporter";
-            let host = process.env.NEXT_PUBLIC_BACKEND_URL || "https://your-space-name.hf.space";
-            const logoUrl = `${host}/static/logos/${brandKey}.svg`;
+            const logoUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}/static/logos/${brandKey}.svg`;
             initialBlocks.push({ id: "header-logo", type: "image", src: logoUrl, x: 160, y: currentY, w: 800, h: 120 });
             currentY += 160;
 
