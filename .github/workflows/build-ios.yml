@@ -3,7 +3,7 @@ name: Build iOS App
 on:
   workflow_dispatch:
   push:
-    branches: [ main, master, production_ready ]
+    branches: [ main, master ]
 
 jobs:
   build-ios:
@@ -25,11 +25,7 @@ jobs:
       - name: Build Web Production Assets
         run: npm run build
 
-      - name: Install CocoaPods Dependencies
-        working-directory: ios/App
-        run: pod install
-
-      - name: Sync Capacitor iOS
+      - name: Sync Capacitor iOS (Copies Assets & Installs Pods)
         run: npx cap sync ios
 
       - name: Build iOS App (Simulator / Unsigned Debug)
