@@ -153,10 +153,78 @@ import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 
 function App() {
   const [isInitializing, setIsInitializing] = useState(true);
+  const [isAdminVerified, setIsAdminVerified] = useState(false);
+  // adminCheckDone: true once DB check finishes — splash stays up until then
+  const [adminCheckDone, setAdminCheckDone] = useState(false);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const user = useAuthStore((state) => state.user);
   const login = useAuthStore((state) => state.login);
+  const updateUser = useAuthStore((state) => state.updateUser);
   const setPendingCropImageSrc = useUIStore((state) => state.setPendingCropImageSrc);
+
+  // ── Async admin role verification ─────────────────────────────────────────
+  // mohithroyal16450@gmail.com is the hardcoded SUPER ADMIN — always admin.
+  // For all other users: call the BACKEND API to check admin status.
+  // The backend checks its own SQLite DB (the real source of truth for roles).
+  // We do NOT use the Supabase profiles table because the CHECK constraint
+  // forbids plan='admin' and the upsert can silently fail.
+  useEffect(() => {
+    const checkAdminRole = async () => {
+      if (!user?.id) {
+        setIsAdminVerified(false);
+        setAdminCheckDone(true);
+        return;
+      }
+      // Fast path: super admin email or metadata
+      if (
+        isAdminUser(user) ||
+        (user as any)?.role === 'admin' ||
+        (user as any)?.app_metadata?.role === 'admin' ||
+        (user as any)?.user_metadata?.role === 'admin'
+      ) {
+        setIsAdminVerified(true);
+        setAdminCheckDone(true);
+        return;
+      }
+
+      // Check 1: Supabase profiles table
+      try {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        if (prof?.role === 'admin') {
+          updateUser({ role: 'admin' } as any);
+          setIsAdminVerified(true);
+          setAdminCheckDone(true);
+          return;
+        }
+      } catch { /* silent */ }
+
+      // Check 2: Backend API — if /admin/stats returns 200, user is admin
+      try {
+        const token = useAuthStore.getState().token;
+        if (token) {
+          const res = await fetch(
+            'https://news-backend-sjw6.onrender.com/api/v1/admin/stats',
+            { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(6000) }
+          );
+          const isDbAdmin = res.status === 200;
+          if (isDbAdmin) {
+            updateUser({ role: 'admin' } as any);
+          }
+          setIsAdminVerified(isDbAdmin);
+        }
+      } catch {
+        setIsAdminVerified(false);
+      } finally {
+        setAdminCheckDone(true);
+      }
+    };
+    setAdminCheckDone(false);
+    checkAdminRole();
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     // Initialize Google Auth plugin
@@ -226,16 +294,18 @@ function App() {
     };
   }, []);
 
-  if (isInitializing) return <SplashScreen />;
+  // Keep splash up until BOTH the 1200ms timer AND admin DB check are done
+  // so admin users never see a flash of the normal reporter app.
+  if (isInitializing || !adminCheckDone) return <SplashScreen />;
 
-  const isAdmin = isAdminUser(user);
+  const isAdmin = isAdminUser(user) || isAdminVerified;
 
   return (
     <Router>
       <Routes>
         <Route 
           path="/login" 
-          element={!isAuthenticated ? <LoginScreen /> : <Navigate to={isAdmin ? "/admin" : "/"} replace />} 
+          element={!isAuthenticated ? <LoginScreen /> : <Navigate to={user?.email === 'mohithroyal16450@gmail.com' ? "/admin" : "/"} replace />} 
         />
 
         <Route 
@@ -263,10 +333,18 @@ function App() {
           element={<ForgotPasswordScreen />} 
         />
 
-        {/* ── Admin Route (standalone, no MainLayout) ── */}
+        {/* ── Admin Route (standalone, only for verified admins) ── */}
         <Route 
           path="/admin" 
-          element={<AdminScreen />} 
+          element={
+            !isAuthenticated ? (
+              <Navigate to="/login" replace />
+            ) : isAdmin ? (
+              <AdminScreen />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          } 
         />
         
         <Route 
@@ -277,7 +355,9 @@ function App() {
         <Route 
           path="/*" 
           element={
-            isAuthenticated ? (
+            !isAuthenticated ? (
+              <Navigate to="/login" />
+            ) : (
               <MainLayout>
                 <Routes>
                   <Route path="/" element={<GenerateScreen />} />
@@ -290,8 +370,6 @@ function App() {
                   <Route path="*" element={<Navigate to="/" />} />
                 </Routes>
               </MainLayout>
-            ) : (
-              <Navigate to="/login" />
             )
           } 
         />

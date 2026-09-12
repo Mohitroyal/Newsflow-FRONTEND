@@ -280,6 +280,21 @@ export const useUIStore = create<UIStore>()(
 );
 
 // ─── Admin RBAC Helper ────────────────────────────────────────────────────────
+export const SUPER_ADMIN_EMAIL = 'mohithroyal16450@gmail.com';
+
+/**
+ * Returns true if the user is the superadmin (mohithroyal16450@gmail.com)
+ */
+export const isSuperAdminUser = (userOrEmail?: any): boolean => {
+  if (!userOrEmail) return false;
+  const email = (
+    typeof userOrEmail === 'string'
+      ? userOrEmail
+      : userOrEmail?.email || userOrEmail?.user_metadata?.email || ''
+  ).trim().toLowerCase();
+  return email === SUPER_ADMIN_EMAIL.toLowerCase();
+};
+
 /**
  * Returns true if the given user or email has admin privileges:
  * 1. Checks hardcoded admin emails (VITE_ADMIN_EMAILS env var)
@@ -289,7 +304,7 @@ export const useUIStore = create<UIStore>()(
 export const isAdminUser = (userOrEmail?: any): boolean => {
   if (!userOrEmail) return false;
 
-  const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS ?? 'mohithroyal16450@gmail.com')
+  const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS ?? SUPER_ADMIN_EMAIL)
     .split(',')
     .map((e: string) => e.trim().toLowerCase());
 
@@ -314,5 +329,6 @@ export const isAdminUser = (userOrEmail?: any): boolean => {
 
   return role === 'admin';
 };
+
 
 

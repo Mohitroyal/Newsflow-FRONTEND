@@ -14,16 +14,22 @@ if exist "C:\Users\maham\node-v22.13.0-win-x64" (
 )
 
 rem Set ANDROID_HOME
-if exist "C:\Users\maham\AppData\Local\Android\Sdk" (
+if exist "%LOCALAPPDATA%\Android\Sdk" (
+  set "ANDROID_HOME=%LOCALAPPDATA%\Android\Sdk"
+  set "ANDROID_SDK_ROOT=%LOCALAPPDATA%\Android\Sdk"
+) else if exist "C:\Users\MOHIT\AppData\Local\Android\Sdk" (
+  set "ANDROID_HOME=C:\Users\MOHIT\AppData\Local\Android\Sdk"
+  set "ANDROID_SDK_ROOT=C:\Users\MOHIT\AppData\Local\Android\Sdk"
+) else if exist "C:\Users\maham\AppData\Local\Android\Sdk" (
   set "ANDROID_HOME=C:\Users\maham\AppData\Local\Android\Sdk"
   set "ANDROID_SDK_ROOT=C:\Users\maham\AppData\Local\Android\Sdk"
 )
 
 rem Set JAVA_HOME if not already set or invalid
-if exist "C:\Program Files\Android\Android Studio\jbr" (
-  set "JAVA_HOME=C:\Program Files\Android\Android Studio\jbr"
-) else if exist "C:\Program Files\Java\jdk-17" (
+if exist "C:\Program Files\Java\jdk-17" (
   set "JAVA_HOME=C:\Program Files\Java\jdk-17"
+) else if exist "C:\Program Files\Android\Android Studio\jbr" (
+  set "JAVA_HOME=C:\Program Files\Android\Android Studio\jbr"
 ) else if exist "C:\Program Files\Microsoft\jdk-21.0.11.10-hotspot" (
   set "JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.11.10-hotspot"
 )

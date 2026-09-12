@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useAuthStore, useUIStore, useGenerationStore, getReporterPhoto, getReporterName, isAdminUser } from '@/store';
+import { useState, useEffect } from 'react';
+import { useAuthStore, useUIStore, useGenerationStore, getReporterPhoto, getReporterName, isAdminUser, isSuperAdminUser } from '@/store';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Moon, Trash2, Shield, Check, QrCode, LogOut, AlertTriangle, User as UserIcon, UserCircle, ChevronRight, FileText, History, Crown } from 'lucide-react';
 
@@ -72,6 +72,51 @@ export const SettingsScreen = () => {
   const { user, logout } = useAuthStore();
   const resetGenerations = useGenerationStore((state) => state.resetConfig);
   const navigate = useNavigate();
+
+  // ── Admin check (checks super admin, user metadata, Supabase profiles table & backend API) ──
+  const [isAdminAccess, setIsAdminAccess] = useState(
+    isAdminUser(user) ||
+    (user as any)?.role === 'admin' ||
+    (user as any)?.app_metadata?.role === 'admin' ||
+    (user as any)?.user_metadata?.role === 'admin'
+  );
+  useEffect(() => {
+    if (
+      isAdminUser(user) ||
+      (user as any)?.role === 'admin' ||
+      (user as any)?.app_metadata?.role === 'admin' ||
+      (user as any)?.user_metadata?.role === 'admin'
+    ) {
+      setIsAdminAccess(true);
+      return;
+    }
+    if (!user?.id) return;
+    (async () => {
+      try {
+        // 1. Check Supabase profiles table
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        if (prof?.role === 'admin') {
+          setIsAdminAccess(true);
+          return;
+        }
+
+        // 2. Check Backend API
+        const raw = localStorage.getItem('newscraft-auth');
+        const token = raw ? JSON.parse(raw)?.state?.token : null;
+        if (token) {
+          const res = await fetch(
+            'https://news-backend-sjw6.onrender.com/api/v1/admin/stats',
+            { headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(6000) }
+          );
+          if (res.status === 200) setIsAdminAccess(true);
+        }
+      } catch { /* silent */ }
+    })();
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Use persistent UI store
   const logoMode = useUIStore((state) => state.logoMode);
@@ -248,9 +293,15 @@ export const SettingsScreen = () => {
                 <h3 className="font-bold text-gray-900 dark:text-white text-base">
                   {getReporterName(user?.email) || (user as any)?.user_metadata?.full_name || (user as any)?.user_metadata?.name || user?.full_name || user?.firstName || 'Reporter'}
                 </h3>
-                <span className="bg-[#CC1E1E]/10 text-[#CC1E1E] text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
-                  Reporter
-                </span>
+                {isAdminAccess ? (
+                  <span className="bg-amber-500/15 text-amber-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase flex items-center gap-1">
+                    <Crown className="w-2.5 h-2.5" /> Admin
+                  </span>
+                ) : (
+                  <span className="bg-[#CC1E1E]/10 text-[#CC1E1E] text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+                    Reporter
+                  </span>
+                )}
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{user?.email || 'reporter@rtiexpress.com'}</p>
             </div>
@@ -308,8 +359,8 @@ export const SettingsScreen = () => {
           <ChevronRight className="w-5 h-5 text-gray-400 shrink-0" />
         </div>
 
-        {/* Admin Panel Card (Visible to Admins) */}
-        {isAdminUser(user) && (
+        {/* Admin Panel Card — only visible to approved admins (DB-checked) */}
+        {isAdminAccess && (
           <div
             onClick={() => navigate('/admin')}
             className="bg-gradient-to-r from-[#1e3a5f] to-[#0D1B2A] border border-amber-500/40 rounded-[14px] p-4 shadow-lg flex items-center justify-between gap-4 cursor-pointer active:scale-[0.99] transition-all"
@@ -320,10 +371,18 @@ export const SettingsScreen = () => {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-bold text-white">Admin Control Center</h3>
-                  <span className="bg-amber-500 text-black text-[9px] font-black uppercase px-1.5 py-0.5 rounded">ADMIN</span>
+                  <h3 className="text-sm font-bold text-white">
+                    {isSuperAdminUser(user) ? 'Superadmin Control Center' : 'Admin Control Center'}
+                  </h3>
+                  <span className="bg-amber-500 text-black text-[9px] font-black uppercase px-1.5 py-0.5 rounded">
+                    {isSuperAdminUser(user) ? 'SUPERADMIN' : 'ADMIN'}
+                  </span>
                 </div>
-                <p className="text-xs text-white/60 mt-0.5">Manage users, roles, statistics & logos</p>
+                <p className="text-xs text-white/60 mt-0.5">
+                  {isSuperAdminUser(user)
+                    ? 'Manage users, roles, statistics & logos'
+                    : 'Manage users, roles & statistics'}
+                </p>
               </div>
             </div>
             <ChevronRight className="w-5 h-5 text-amber-400 shrink-0" />
@@ -686,3 +745,4 @@ export const SettingsScreen = () => {
     </div>
   );
 };
+
