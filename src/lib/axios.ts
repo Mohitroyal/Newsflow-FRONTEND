@@ -1,9 +1,9 @@
 import axios from "axios";
 import { useAuthStore } from "@/store";
 
-// ── Backend URL — locked to production backend ───────────────────────────────
-// Change VITE_API_URL in .env.local to override during development.
-export const API_BASE_URL = "https://news-backend-sjw6.onrender.com";
+export const API_BASE_URL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}`
+  : "https://news-backend-sjw6.onrender.com";
 
 /**
  * Axios instance.

@@ -69,4 +69,12 @@ export const authService = {
       data: undefined
     };
   },
+
+  async deleteAccount(): Promise<ApiResponse<void>> {
+    const res = await api.delete("/api/v1/auth/me");
+    try {
+      await supabase.auth.signOut();
+    } catch (_) {}
+    return res.data;
+  },
 };

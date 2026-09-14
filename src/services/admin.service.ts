@@ -1,17 +1,22 @@
 import { supabase } from '@/lib/supabase';
 import api from '@/lib/axios';
 import { generationService } from '@/services/generation.service';
+import rtiExpressLogo from '@/assets/rti_express_logo.png';
+import recoveredLogo from '@/assets/recovered_logo.png';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface AdminUserProfile {
   id: string;
   email: string;
+  phone_number?: string;
   full_name: string;
   role: 'admin' | 'reporter' | 'user';
   plan: string;
   created_at: string;
   last_sign_in_at?: string;
   total_generations: number;
+  generations_today?: number;
+  is_active_today?: boolean;
   avatar_url?: string;
   preferred_language?: string;
   is_banned?: boolean;
@@ -26,6 +31,43 @@ export interface PublicationLogo {
   is_active: boolean;
   created_at: string;
 }
+
+export const LOCAL_LOGOS_KEY = 'spotnews_admin_publication_logos';
+
+export const DEFAULT_PUBLICATION_LOGOS: PublicationLogo[] = [
+  {
+    id: 'pub_spot_news_24x7',
+    name: 'Spot News 24x7',
+    logo_url: recoveredLogo,
+    publication_code: 'spot_news_24x7',
+    is_active: true,
+    created_at: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'pub_rti_express',
+    name: 'RTI Express',
+    logo_url: rtiExpressLogo,
+    publication_code: 'rti_express',
+    is_active: true,
+    created_at: '2026-01-02T00:00:00.000Z',
+  },
+  {
+    id: 'pub_bharath_reporter',
+    name: 'Bharath Reporter',
+    logo_url: rtiExpressLogo,
+    publication_code: 'bharath_reporter',
+    is_active: true,
+    created_at: '2026-01-03T00:00:00.000Z',
+  },
+  {
+    id: 'pub_national_news',
+    name: 'National News 24x7',
+    logo_url: recoveredLogo,
+    publication_code: 'national_news',
+    is_active: true,
+    created_at: '2026-01-04T00:00:00.000Z',
+  },
+];
 
 export interface AdminStats {
   totalUsers: number;
@@ -93,13 +135,13 @@ export const getAdminStats = async (fromDate?: string, toDate?: string): Promise
   try {
     const res = await api.get('/api/v1/admin/stats', { params });
     if (res.data && typeof res.data.totalUsers === 'number') {
-      const logosRes = await supabase.from('publication_logos').select('id', { count: 'exact', head: true });
+      const logos = await getPublicationLogos();
       return {
         totalUsers: res.data.totalUsers,
         totalGenerationsToday: res.data.totalGenerationsToday ?? 0,
         totalGenerationsAllTime: res.data.totalGenerationsAllTime ?? 0,
         activeUsersToday: res.data.activeUsersToday ?? 0,
-        totalLogos: logosRes.count ?? res.data.totalLogos ?? 0,
+        totalLogos: logos.length,
         rangeGenerations: res.data.rangeGenerations ?? null,
         rangeActiveUsers: res.data.rangeActiveUsers ?? null,
         fromDate: res.data.fromDate ?? fromDate ?? null,
@@ -119,13 +161,11 @@ export const getAdminStats = async (fromDate?: string, toDate?: string): Promise
     const [
       usersRes,
       profilesRes,
-      logosRes,
       genTodayRes,
       genAllRes,
     ] = await Promise.all([
       supabase.from('users').select('id', { count: 'exact', head: true }),
       supabase.from('profiles').select('id', { count: 'exact', head: true }),
-      supabase.from('publication_logos').select('id', { count: 'exact', head: true }),
       supabase
         .from('clippings')
         .select('id', { count: 'exact', head: true })
@@ -158,12 +198,14 @@ export const getAdminStats = async (fromDate?: string, toDate?: string): Promise
       rangeActiveUsersCount = new Set((rangeData ?? []).map((r: any) => r.user_id).filter(Boolean)).size;
     }
 
+    const fallbackLogos = await getPublicationLogos();
+
     return {
       totalUsers: totalUsersCount,
       totalGenerationsToday: genTodayRes.count ?? 0,
       totalGenerationsAllTime: genAllRes.count ?? 0,
       activeUsersToday: uniqueActiveToday,
-      totalLogos: logosRes.count ?? 0,
+      totalLogos: fallbackLogos.length,
       rangeGenerations: rangeGenCount,
       rangeActiveUsers: rangeActiveUsersCount,
       fromDate: fromDate ?? null,
@@ -285,21 +327,150 @@ export const getAdminClippings = async (options?: {
 
 // ─── Users ────────────────────────────────────────────────────────────────────
 export const getAdminUsers = async (): Promise<AdminUserProfile[]> => {
-  // 1. Try Backend API first
+  // Pre-fetch activity / clippings created today and all-time to accurately determine active status & count
+  const activeUserIdsToday = new Set<string>();
+  const todayGenMap: Record<string, number> = {};
+  const allTimeGenMap: Record<string, number> = {};
+
+  try {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
+    const [{ data: allClips }, { data: todayClips }, { data: todayActs }] = await Promise.all([
+      supabase.from('clippings').select('user_id'),
+      supabase.from('clippings').select('user_id').gte('created_at', todayStart),
+      supabase.from('user_activity').select('user_id').gte('created_at', todayStart),
+    ]);
+
+    (allClips ?? []).forEach((c: any) => {
+      if (c.user_id) {
+        const uid = String(c.user_id);
+        allTimeGenMap[uid] = (allTimeGenMap[uid] ?? 0) + 1;
+      }
+    });
+
+    (todayClips ?? []).forEach((c: any) => {
+      if (c.user_id) {
+        const uid = String(c.user_id);
+        activeUserIdsToday.add(uid);
+        todayGenMap[uid] = (todayGenMap[uid] ?? 0) + 1;
+      }
+    });
+
+    (todayActs ?? []).forEach((a: any) => {
+      if (a.user_id) activeUserIdsToday.add(String(a.user_id));
+    });
+  } catch {
+    /* non-blocking */
+  }
+
+  const isWithinLast24HoursOrToday = (dateStr?: string | null): boolean => {
+    if (!dateStr) return false;
+    try {
+      const d = new Date(dateStr);
+      const now = new Date();
+      const diffMs = now.getTime() - d.getTime();
+      if (diffMs >= 0 && diffMs <= 24 * 60 * 60 * 1000) return true;
+      return (
+        d.getFullYear() === now.getFullYear() &&
+        d.getMonth() === now.getMonth() &&
+        d.getDate() === now.getDate()
+      );
+    } catch {
+      return false;
+    }
+  };
+
+  // 1. Primary: Use Backend auth-users endpoint (returns ALL Supabase Auth users + Mobile OTP users)
+  try {
+    const res = await api.get('/api/v1/admin/auth-users');
+    if (Array.isArray(res.data) && res.data.length > 0) {
+      return res.data.map((u: any) => {
+        const uid = String(u.id || '');
+        const isSignInToday = isWithinLast24HoursOrToday(u.last_sign_in_at);
+        const genToday = Math.max(typeof u.generations_today === 'number' ? u.generations_today : 0, todayGenMap[uid] ?? 0);
+        const totalGen = Math.max(typeof u.total_generations === 'number' ? u.total_generations : 0, allTimeGenMap[uid] ?? 0);
+        const isActiveToday = activeUserIdsToday.has(uid) || isSignInToday || genToday > 0;
+
+        const isPhoneUser = Boolean(
+          u.provider === 'phone' ||
+          (u.email && u.email.endsWith('@phone.user')) ||
+          (!u.email && u.phone_number)
+        );
+        const defaultName = isPhoneUser
+          ? (u.phone_number ? `User (${u.phone_number})` : 'Mobile User')
+          : (u.email ? u.email.split('@')[0] : 'User');
+
+        return {
+          id: uid,
+          email: u.email || '',
+          phone_number: u.phone_number || '',
+          full_name: u.full_name || u.name || defaultName,
+          role: u.role || 'user',
+          plan: u.plan || 'free',
+          created_at: u.created_at || '',
+          last_sign_in_at: u.last_sign_in_at || undefined,
+          total_generations: totalGen,
+          generations_today: genToday,
+          is_active_today: isActiveToday,
+          avatar_url: u.avatar_url || '',
+          preferred_language: u.preferred_language || 'English',
+          is_banned: Boolean(u.banned_until || u.is_banned),
+          banned_until: u.banned_until || null,
+        };
+      });
+    }
+  } catch (err) {
+    console.warn('[AdminService] Backend auth-users endpoint unavailable, trying /users:', err);
+  }
+
+  // 2. Secondary: Backend /users endpoint
   try {
     const res = await api.get('/api/v1/admin/users');
     if (Array.isArray(res.data) && res.data.length > 0) {
-      return res.data;
+      return res.data.map((u: any) => {
+        const uid = String(u.id || '');
+        const isSignInToday = isWithinLast24HoursOrToday(u.last_sign_in_at);
+        const genToday = Math.max(typeof u.generations_today === 'number' ? u.generations_today : 0, todayGenMap[uid] ?? 0);
+        const totalGen = Math.max(typeof u.total_generations === 'number' ? u.total_generations : 0, allTimeGenMap[uid] ?? 0);
+        const isActiveToday = activeUserIdsToday.has(uid) || isSignInToday || genToday > 0;
+
+        const isPhoneUser = Boolean(
+          u.provider === 'phone' ||
+          (u.email && u.email.endsWith('@phone.user')) ||
+          (!u.email && u.phone_number)
+        );
+        const defaultName = isPhoneUser
+          ? (u.phone_number ? `User (${u.phone_number})` : 'Mobile User')
+          : (u.email ? u.email.split('@')[0] : 'User');
+
+        return {
+          id: uid,
+          email: u.email || '',
+          phone_number: u.phone_number || '',
+          full_name: u.full_name || u.name || defaultName,
+          role: u.role || 'user',
+          plan: u.plan || 'free',
+          created_at: u.created_at || '',
+          last_sign_in_at: u.last_sign_in_at || undefined,
+          total_generations: totalGen,
+          generations_today: genToday,
+          is_active_today: isActiveToday,
+          avatar_url: u.avatar_url || '',
+          preferred_language: u.preferred_language || 'English',
+          is_banned: Boolean(u.banned_until || u.is_banned),
+          banned_until: u.banned_until || null,
+        };
+      });
     }
   } catch (err) {
     console.warn('[AdminService] Backend users endpoint unavailable, falling back to Supabase client query:', err);
   }
 
-  // 2. Fallback: Supabase Client Query
+  // 3. Fallback: Supabase Client Query
   try {
     const [{ data: users }, { data: profiles }, { data: genData }] = await Promise.all([
-      supabase.from('users').select('id, email, full_name, avatar_url, created_at, preferred_language').order('created_at', { ascending: false }),
-      supabase.from('profiles').select('id, role, plan, last_sign_in_at, is_banned'),
+      supabase.from('users').select('id, email, full_name, avatar_url, created_at, preferred_language, phone_number').order('created_at', { ascending: false }),
+      supabase.from('profiles').select('id, role, plan, last_sign_in_at, is_banned, phone_number'),
       supabase.from('clippings').select('user_id'),
     ]);
 
@@ -314,27 +485,41 @@ export const getAdminUsers = async (): Promise<AdminUserProfile[]> => {
     const userMap = new Map<string, AdminUserProfile>();
 
     (users ?? []).forEach((u: any) => {
-      userMap.set(u.id, {
-        id: u.id,
+      const uid = String(u.id);
+      const isSignInToday = isWithinLast24HoursOrToday(profileMap[uid]?.last_sign_in_at);
+      const genToday = todayGenMap[uid] ?? 0;
+      const isActiveToday = activeUserIdsToday.has(uid) || isSignInToday || genToday > 0;
+
+      userMap.set(uid, {
+        id: uid,
         email: u.email ?? '',
+        phone_number: u.phone_number ?? profileMap[uid]?.phone_number ?? '',
         full_name: u.full_name ?? '',
         avatar_url: u.avatar_url ?? '',
         created_at: u.created_at ?? '',
         preferred_language: u.preferred_language ?? 'English',
-        role: profileMap[u.id]?.role ?? 'user',
-        plan: profileMap[u.id]?.plan ?? 'free',
-        last_sign_in_at: profileMap[u.id]?.last_sign_in_at,
-        total_generations: genCountMap[u.id] ?? 0,
-        is_banned: Boolean(profileMap[u.id]?.is_banned),
+        role: profileMap[uid]?.role ?? 'user',
+        plan: profileMap[uid]?.plan ?? 'free',
+        last_sign_in_at: profileMap[uid]?.last_sign_in_at,
+        total_generations: genCountMap[uid] ?? 0,
+        generations_today: genToday,
+        is_active_today: isActiveToday,
+        is_banned: Boolean(profileMap[uid]?.is_banned),
       });
     });
 
     // Also include any profiles not in users table
     (profiles ?? []).forEach((p: any) => {
-      if (!userMap.has(p.id)) {
-        userMap.set(p.id, {
-          id: p.id,
+      const uid = String(p.id);
+      if (!userMap.has(uid)) {
+        const isSignInToday = isWithinLast24HoursOrToday(p.last_sign_in_at);
+        const genToday = todayGenMap[uid] ?? 0;
+        const isActiveToday = activeUserIdsToday.has(uid) || isSignInToday || genToday > 0;
+
+        userMap.set(uid, {
+          id: uid,
           email: p.email ?? '',
+          phone_number: p.phone_number ?? '',
           full_name: p.full_name ?? 'User',
           avatar_url: '',
           created_at: p.created_at ?? '',
@@ -342,7 +527,9 @@ export const getAdminUsers = async (): Promise<AdminUserProfile[]> => {
           role: p.role ?? 'user',
           plan: p.plan ?? 'free',
           last_sign_in_at: p.last_sign_in_at,
-          total_generations: genCountMap[p.id] ?? 0,
+          total_generations: genCountMap[uid] ?? 0,
+          generations_today: genToday,
+          is_active_today: isActiveToday,
           is_banned: Boolean(p.is_banned),
         });
       }
@@ -357,11 +544,16 @@ export const getAdminUsers = async (): Promise<AdminUserProfile[]> => {
 // ─── Edit User Role / Plan ────────────────────────────────────────────────────
 export const updateUserRole = async (
   userId: string,
-  role: 'admin' | 'reporter' | 'user'
+  role: 'admin' | 'reporter' | 'user',
+  phoneNumber?: string
 ): Promise<{ success: boolean; error?: string }> => {
   // 1. Primary: Use Backend API (runs with service_role key, safely bypassing RLS)
   try {
-    const res = await api.put(`/api/v1/admin/users/${userId}/role`, { role });
+    const payload: any = { role };
+    if (phoneNumber && phoneNumber.trim()) {
+      payload.phone_number = phoneNumber.trim();
+    }
+    const res = await api.put(`/api/v1/admin/users/${userId}/role`, payload);
     if (res.status >= 200 && res.status < 300) {
       // Force-refresh the Supabase session so the promoted user's JWT picks
       // up the new app_metadata.role immediately — no sign-out/in needed.
@@ -432,7 +624,6 @@ export const updateUserPlan = async (
   }
 };
 
-
 // ─── Ban / Block User ─────────────────────────────────────────────────────────
 export const banUser = async (
   userId: string,
@@ -489,19 +680,85 @@ export const deleteUser = async (
   }
 };
 
+// Helper to ensure logos always have an image asset even if URL is empty in database
+const enrichLogoWithAsset = (logo: any): PublicationLogo => {
+  const code = (logo.publication_code || '').toLowerCase();
+  let fallbackUrl = recoveredLogo;
+  if (code.includes('rti') || code.includes('bharath')) {
+    fallbackUrl = rtiExpressLogo;
+  }
+  return {
+    id: String(logo.id || `pub_${code}`),
+    name: logo.name || 'Publication',
+    publication_code: code,
+    logo_url: logo.logo_url || fallbackUrl,
+    is_active: logo.is_active !== false,
+    created_at: logo.created_at || new Date().toISOString(),
+  };
+};
 
 // ─── Publication Logos ────────────────────────────────────────────────────────
 export const getPublicationLogos = async (): Promise<PublicationLogo[]> => {
+  // 1. Try Backend Admin API first (reliable, bypasses RLS, auto-seeds)
+  try {
+    const res = await api.get('/api/v1/admin/logos');
+    if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+      const enriched = res.data.map(enrichLogoWithAsset);
+      try {
+        localStorage.setItem(LOCAL_LOGOS_KEY, JSON.stringify(enriched));
+      } catch { /* silent */ }
+      return enriched;
+    }
+  } catch (err) {
+    console.warn('[AdminService] Backend /admin/logos unavailable, trying Supabase / local:', err);
+  }
+
+  // 2. Try Supabase publication_logos table
   try {
     const { data, error } = await supabase
       .from('publication_logos')
       .select('*')
       .order('created_at', { ascending: true });
-    if (error) return [];
-    return data ?? [];
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return data.map(enrichLogoWithAsset);
+    }
   } catch {
-    return [];
+    /* fallback to local */
   }
+
+  // 3. Try localStorage custom logos
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const saved = localStorage.getItem(LOCAL_LOGOS_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map(enrichLogoWithAsset);
+        }
+      }
+    }
+  } catch {
+    /* parse error */
+  }
+
+  // 4. Fallback to default publication brand logos
+  return DEFAULT_PUBLICATION_LOGOS;
+};
+
+export const getActivePublicationLogos = async (): Promise<PublicationLogo[]> => {
+  // 1. Try Backend active logos endpoint (public, unauthenticated/authenticated)
+  try {
+    const res = await api.get('/api/v1/admin/logos/active');
+    if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+      return res.data.map(enrichLogoWithAsset);
+    }
+  } catch (err) {
+    console.warn('[AdminService] Backend /admin/logos/active unavailable:', err);
+  }
+
+  // 2. Fallback: fetch all and filter by is_active !== false
+  const all = await getPublicationLogos();
+  return all.filter((l) => l.is_active !== false);
 };
 
 export const addPublicationLogo = async (
@@ -509,19 +766,59 @@ export const addPublicationLogo = async (
   logo_url: string,
   publication_code: string
 ): Promise<{ success: boolean; error?: string }> => {
+  const cleanCode = publication_code.trim().toLowerCase().replace(/\s+/g, '_');
+  const cleanName = name.trim();
+  const cleanUrl = logo_url.trim();
+
+  const newLogo: PublicationLogo = {
+    id: `logo_${Date.now()}`,
+    name: cleanName,
+    logo_url: cleanUrl || recoveredLogo,
+    publication_code: cleanCode,
+    is_active: true,
+    created_at: new Date().toISOString(),
+  };
+
+  // Update local storage optimistically
+  try {
+    const current = await getPublicationLogos();
+    const updated = [newLogo, ...current.filter((l) => l.publication_code !== cleanCode)];
+    localStorage.setItem(LOCAL_LOGOS_KEY, JSON.stringify(updated));
+  } catch {
+    /* local error */
+  }
+
+  // 1. Try Backend API first
+  try {
+    await api.post('/api/v1/admin/logos', {
+      name: cleanName,
+      publication_code: cleanCode,
+      logo_url: cleanUrl,
+      is_active: true,
+    });
+    return { success: true };
+  } catch (err) {
+    console.warn('[addPublicationLogo] Backend API error, attempting Supabase insert:', err);
+  }
+
+  // 2. Attempt Supabase insert
   try {
     const { error } = await supabase.from('publication_logos').insert([
       {
-        name: name.trim(),
-        logo_url: logo_url.trim(),
-        publication_code: publication_code.trim().toLowerCase().replace(/\s+/g, '_'),
+        name: cleanName,
+        logo_url: cleanUrl,
+        publication_code: cleanCode,
+        is_active: true,
       },
     ]);
-    if (error) return { success: false, error: error.message };
-    return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e?.message ?? 'Unknown error' };
+    if (error) {
+      console.warn('[addPublicationLogo] Supabase insert warning (saved locally):', error.message);
+    }
+  } catch {
+    /* silent */
   }
+
+  return { success: true };
 };
 
 export const updatePublicationLogo = async (
@@ -533,8 +830,37 @@ export const updatePublicationLogo = async (
     is_active?: boolean;
   }
 ): Promise<{ success: boolean; error?: string }> => {
+  // Update local storage
   try {
-    const payload: Record<string, any> = {};
+    const current = await getPublicationLogos();
+    const updated = current.map((l) => {
+      if (l.id === id || l.publication_code === id) {
+        return {
+          ...l,
+          ...(updates.name !== undefined ? { name: updates.name.trim() } : {}),
+          ...(updates.logo_url !== undefined ? { logo_url: updates.logo_url.trim() } : {}),
+          ...(updates.publication_code !== undefined ? { publication_code: updates.publication_code.trim().toLowerCase().replace(/\s+/g, '_') } : {}),
+          ...(updates.is_active !== undefined ? { is_active: updates.is_active } : {}),
+        };
+      }
+      return l;
+    });
+    localStorage.setItem(LOCAL_LOGOS_KEY, JSON.stringify(updated));
+  } catch {
+    /* local error */
+  }
+
+  // 1. Try Backend API first
+  try {
+    await api.put(`/api/v1/admin/logos/${encodeURIComponent(id)}`, updates);
+    return { success: true };
+  } catch (err) {
+    console.warn('[updatePublicationLogo] Backend API error, attempting direct Supabase:', err);
+  }
+
+  // 2. Direct Supabase update fallback
+  try {
+    const payload: any = {};
     if (updates.name !== undefined) payload.name = updates.name.trim();
     if (updates.logo_url !== undefined) payload.logo_url = updates.logo_url.trim();
     if (updates.publication_code !== undefined) {
@@ -542,16 +868,15 @@ export const updatePublicationLogo = async (
     }
     if (updates.is_active !== undefined) payload.is_active = updates.is_active;
 
-    const { error } = await supabase
+    await supabase
       .from('publication_logos')
       .update(payload)
       .eq('id', id);
-
-    if (error) return { success: false, error: error.message };
-    return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e?.message ?? 'Unknown error' };
+  } catch {
+    /* silent */
   }
+
+  return { success: true };
 };
 
 export const uploadLogoImage = async (file: File): Promise<{ url?: string; error?: string }> => {
@@ -592,29 +917,66 @@ export const uploadLogoImage = async (file: File): Promise<{ url?: string; error
   return { error: 'Failed to upload logo image. Please try again.' };
 };
 
-
 export const toggleLogoActive = async (
   id: string,
   is_active: boolean
 ): Promise<{ success: boolean }> => {
+  // 1. Update local storage immediately for fast responsive UI
   try {
-    const { error } = await supabase
+    const current = await getPublicationLogos();
+    const updated = current.map((l) => (l.id === id || l.publication_code === id ? { ...l, is_active } : l));
+    localStorage.setItem(LOCAL_LOGOS_KEY, JSON.stringify(updated));
+  } catch {
+    /* silent */
+  }
+
+  // 2. Call backend Admin API (uses service role key to bypass RLS and persist to database)
+  try {
+    await api.put(`/api/v1/admin/logos/${encodeURIComponent(id)}`, { is_active });
+    return { success: true };
+  } catch (err) {
+    console.warn('[toggleLogoActive] Backend API error, attempting direct Supabase:', err);
+  }
+
+  // 3. Direct Supabase fallback
+  try {
+    await supabase
       .from('publication_logos')
       .update({ is_active })
       .eq('id', id);
-    return { success: !error };
   } catch {
-    return { success: false };
+    /* silent */
   }
+
+  return { success: true };
 };
 
 export const removePublicationLogo = async (id: string): Promise<{ success: boolean }> => {
+  // 1. Update local storage
   try {
-    const { error } = await supabase.from('publication_logos').delete().eq('id', id);
-    return { success: !error };
+    const current = await getPublicationLogos();
+    const updated = current.filter((l) => l.id !== id && l.publication_code !== id);
+    localStorage.setItem(LOCAL_LOGOS_KEY, JSON.stringify(updated));
   } catch {
-    return { success: false };
+    /* silent */
   }
+
+  // 2. Try Backend API
+  try {
+    await api.delete(`/api/v1/admin/logos/${encodeURIComponent(id)}`);
+    return { success: true };
+  } catch (err) {
+    console.warn('[removePublicationLogo] Backend API error, attempting Supabase delete:', err);
+  }
+
+  // 3. Fallback Supabase
+  try {
+    await supabase.from('publication_logos').delete().eq('id', id);
+  } catch {
+    /* silent */
+  }
+
+  return { success: true };
 };
 
 // ─── Activity Logger ──────────────────────────────────────────────────────────

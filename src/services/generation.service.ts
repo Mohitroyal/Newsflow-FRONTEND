@@ -129,6 +129,14 @@ export const generationService = {
   async uploadImage(file: File): Promise<ApiResponse<{ url: string }>> {
     log("Image Upload Started", `name=${file.name} size=${(file.size / 1024).toFixed(0)} KB`);
 
+    // Pre-flight Client-Side Validation
+    if (!file || file.size === 0) {
+      throw new Error("Empty file uploaded. File must be greater than 0 bytes.");
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      throw new Error("File exceeds maximum allowed size of 10MB. 10MB is the limit.");
+    }
+
     // Compress before upload to reduce network time
     const compressed = await compressImage(file);
     log("Image Upload Compressing", `compressed size=${(compressed.size / 1024).toFixed(0)} KB`);
@@ -167,7 +175,16 @@ export const generationService = {
       clearTimeout(uploadTimeoutId);
 
       if (!res.ok) {
-        throw new Error(`Image Upload Failed: ${res.statusText} (HTTP ${res.status})`);
+        let errorDetail = "";
+        try {
+          const errJson = await res.json();
+          errorDetail = errJson.detail || errJson.message || "";
+        } catch (_) {}
+
+        if (res.status === 413) {
+          throw new Error("File exceeds maximum allowed size of 10MB. 10MB is the limit.");
+        }
+        throw new Error(errorDetail || `Image Upload Failed: ${res.statusText} (HTTP ${res.status})`);
       }
 
       const data = await res.json();

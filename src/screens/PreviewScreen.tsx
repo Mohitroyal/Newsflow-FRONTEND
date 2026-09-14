@@ -341,7 +341,7 @@ export const PreviewScreen = () => {
   return (
     <div className="h-screen bg-[#dceef8] flex flex-col fixed inset-0 z-50 font-sans text-[#0a1a2e]">
       {/* ── HEADER ──────────────────────────────────────────────────────── */}
-      <div className="h-16 bg-[#0a2540] border-b-[3px] border-[#cc2222] flex items-center px-4 shrink-0 shadow-sm relative z-20">
+      <div className="h-16 bg-[#015BB3] border-b-[3px] border-[#145AB1] flex items-center px-4 shrink-0 shadow-sm relative z-20">
         <button
           onClick={() => {
             if (generation.status === 'processing' || generation.status === 'pending') {
@@ -430,11 +430,11 @@ export const PreviewScreen = () => {
             </div>
 
             {/* HINT BAR */}
-            <div className="w-full bg-[#0a2540] rounded-[6px] py-[10px] px-[14px] flex items-center justify-center gap-2 shadow-sm animate-in zoom-in-95 duration-500 fill-mode-both" style={{ animationDelay: '400ms' }}>
-              <div className="w-3.5 h-3.5 rounded-full bg-[#a0c4dc]/20 flex items-center justify-center shrink-0">
-                <span className="text-[#a0c4dc] text-[9px] font-bold font-serif italic">i</span>
+            <div className="w-full bg-[#015BB3] rounded-[6px] py-[10px] px-[14px] flex items-center justify-center gap-2 shadow-sm animate-in zoom-in-95 duration-500 fill-mode-both" style={{ animationDelay: '400ms' }}>
+              <div className="w-3.5 h-3.5 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                <span className="text-white text-[9px] font-bold font-serif italic">i</span>
               </div>
-              <span className="text-[#a0c4dc] text-[10px] font-medium tracking-wide">Checking every 3 seconds &middot; Do not close this screen</span>
+              <span className="text-white text-[10px] font-medium tracking-wide">Checking every 3 seconds &middot; Do not close this screen</span>
             </div>
           </div>
         )}
@@ -483,8 +483,8 @@ export const PreviewScreen = () => {
         {(generation.png_url) && (
           <div className="flex flex-col items-center w-full h-full relative animate-in fade-in duration-500 pb-2">
              <div className="flex flex-col items-center mb-4 shrink-0 relative">
-               <div className="absolute inset-0 bg-[#0a2540] rounded-full opacity-0 animate-ping" style={{ animationDuration: '1.5s', animationDelay: '0.4s' }} />
-               <div className="w-12 h-12 rounded-full bg-[#0a2540] flex items-center justify-center mb-2 shadow-sm animate-in zoom-in duration-500" style={{ animationTimingFunction: 'cubic-bezier(0.68, -0.55, 0.265, 1.55)' }}>
+               <div className="absolute inset-0 bg-[#015BB3] rounded-full opacity-0 animate-ping" style={{ animationDuration: '1.5s', animationDelay: '0.4s' }} />
+               <div className="w-12 h-12 rounded-full bg-[#015BB3] flex items-center justify-center mb-2 shadow-sm animate-in zoom-in duration-500" style={{ animationTimingFunction: 'cubic-bezier(0.68, -0.55, 0.265, 1.55)' }}>
                  <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" style={{ strokeDasharray: 24, strokeDashoffset: 24, animation: 'draw 0.4s ease-out 0.3s forwards' }} />
                  </svg>
@@ -517,7 +517,7 @@ export const PreviewScreen = () => {
                   <button
                     onClick={() => handleDownload('pdf')}
                     disabled={downloading}
-                    className="flex-1 py-[14px] bg-[#0a2540] hover:bg-[#071a2d] active:bg-[#071a2d] text-[#7bbce0] rounded-[8px] font-bold text-xs tracking-wider uppercase transition-all flex items-center justify-center gap-2 shadow-sm hover:shadow-[0_4px_12px_rgba(10,37,64,0.3)] animate-in slide-in-from-bottom-2 duration-300 delay-300 fill-mode-both relative overflow-hidden group"
+                    className="flex-1 py-[14px] bg-[#015BB3] hover:bg-[#145AB1] active:bg-[#015BB3] text-white rounded-[8px] font-bold text-xs tracking-wider uppercase transition-all flex items-center justify-center gap-2 shadow-sm hover:shadow-[0_4px_12px_rgba(1,91,179,0.3)] animate-in slide-in-from-bottom-2 duration-300 delay-300 fill-mode-both relative overflow-hidden group"
                   >
                     <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:animate-[shimmerSweep_1s_ease-out]" />
                     <FileDown className="w-4 h-4 shrink-0" />

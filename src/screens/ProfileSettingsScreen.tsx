@@ -113,9 +113,9 @@ export const ProfileSettingsScreen: React.FC = () => {
   };
 
   return (
-    <div className="min-h-full bg-[#dceef8] flex flex-col font-sans">
+    <div className="min-h-full bg-[#F3F6FB] flex flex-col font-sans">
       {/* ── Header ── */}
-      <header className="bg-[#0a2540] px-4 py-3.5 flex items-center gap-3 text-white sticky top-0 z-20 shadow-md">
+      <header className="bg-[#015BB3] px-4 py-3.5 flex items-center gap-3 text-white sticky top-0 z-20 shadow-md">
         <button
           type="button"
           onClick={() => navigate('/settings')}
@@ -136,7 +136,7 @@ export const ProfileSettingsScreen: React.FC = () => {
       <main className="flex-1 p-6 flex flex-col items-center max-w-md mx-auto w-full space-y-6">
         {/* Toast confirmation */}
         {toastMessage && (
-          <div className="w-full bg-[#0a2540] text-white px-4 py-3 rounded-xl shadow-lg flex items-center justify-center gap-2 text-sm font-bold animate-fade-in">
+          <div className="w-full bg-[#015BB3] text-white px-4 py-3 rounded-xl shadow-lg flex items-center justify-center gap-2 text-sm font-bold animate-fade-in">
             <Check className="w-4 h-4 text-green-400 shrink-0" />
             <span>{toastMessage}</span>
           </div>
@@ -144,7 +144,7 @@ export const ProfileSettingsScreen: React.FC = () => {
 
         {/* Avatar & Change photo link */}
         <div className="flex flex-col items-center">
-          <div className="w-[88px] h-[88px] rounded-full bg-[#0a2540] border-[3px] border-[#cc2222] flex items-center justify-center overflow-hidden shadow-md shrink-0">
+          <div className="w-[88px] h-[88px] rounded-full bg-[#015BB3] border-[3px] border-[#145AB1] flex items-center justify-center overflow-hidden shadow-md shrink-0">
             {activePhoto ? (
               <img
                 src={activePhoto}
@@ -159,9 +159,9 @@ export const ProfileSettingsScreen: React.FC = () => {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="text-[#cc2222] font-bold text-sm hover:underline cursor-pointer flex items-center gap-1.5 mt-3 active:scale-95 transition-transform"
+            className="text-[#145AB1] font-bold text-sm hover:underline cursor-pointer flex items-center gap-1.5 mt-3 active:scale-95 transition-transform"
           >
-            <Camera className="w-4 h-4 text-[#cc2222]" />
+            <Camera className="w-4 h-4 text-[#145AB1]" />
             <span>Change photo</span>
           </button>
 
@@ -175,10 +175,10 @@ export const ProfileSettingsScreen: React.FC = () => {
         </div>
 
         {/* Inputs section */}
-        <div className="w-full space-y-5">
+        <div className="w-full bg-[#E8F2FC] border border-[#D0E2F7] rounded-2xl p-5 space-y-5 shadow-sm">
           {/* Reporter Name input */}
           <div>
-            <label className="block text-xs font-bold text-[#0a2540] uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-bold text-[#0A2540] uppercase tracking-wider mb-1.5">
               Reporter Name
             </label>
             <input
@@ -188,10 +188,10 @@ export const ProfileSettingsScreen: React.FC = () => {
                 setName(e.target.value);
                 if (error) setError('');
               }}
-              className={`w-full bg-white text-gray-900 border ${
+              className={`w-full bg-white text-[#0A2540] border ${
                 error
                   ? 'border-red-500 ring-2 ring-red-200'
-                  : 'border-gray-300 focus:border-[#0a2540] focus:ring-2 focus:ring-[#0a2540]/20'
+                  : 'border-[#D0E2F7] focus:border-[#145AB1] focus:ring-2 focus:ring-[#145AB1]/20'
               } rounded-xl px-4 py-3 text-sm font-medium focus:outline-none transition-all shadow-sm`}
               placeholder="Enter reporter name"
             />
@@ -205,7 +205,7 @@ export const ProfileSettingsScreen: React.FC = () => {
 
           {/* Email input (Disabled) */}
           <div>
-            <label className="block text-xs font-bold text-[#0a2540] uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-bold text-[#0A2540] uppercase tracking-wider mb-1.5">
               Email
             </label>
             <input
@@ -213,7 +213,7 @@ export const ProfileSettingsScreen: React.FC = () => {
               value={currentEmail}
               disabled
               readOnly
-              className="w-full bg-gray-200/70 text-gray-500 border border-gray-300/80 rounded-xl px-4 py-3 text-sm font-medium cursor-not-allowed select-none shadow-inner"
+              className="w-full bg-[#F3F6FB] text-[#6B7A90] border border-[#D0E2F7] rounded-xl px-4 py-3 text-sm font-medium cursor-not-allowed select-none shadow-inner"
             />
           </div>
         </div>
@@ -226,7 +226,7 @@ export const ProfileSettingsScreen: React.FC = () => {
           <button
             type="button"
             onClick={handleSaveChanges}
-            className="w-full bg-[#0a2540] hover:bg-[#0a2540]/90 active:scale-[0.99] text-white font-bold text-base py-3.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full bg-[#145AB1] hover:bg-[#015BB3] active:scale-[0.99] text-white font-bold text-base py-3.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             <span>Save changes</span>
           </button>

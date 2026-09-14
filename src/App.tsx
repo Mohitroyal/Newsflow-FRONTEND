@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { Settings, Plus } from 'lucide-react';
-import { useTranslation } from './lib/i18n';
+import { Settings, Plus, Newspaper } from 'lucide-react';
+// import { useTranslation } from './lib/i18n';
 import mastheadLogo from './assets/rti_express_logo.png';
 import watermarkLogo from './assets/rti_express_watermark.png';
 import { SplashScreen } from './screens/SplashScreen';
@@ -10,7 +10,7 @@ import { SignupScreen } from './screens/SignupScreen';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { GenerateScreen } from './screens/GenerateScreen';
 import { TemplatesScreen } from './screens/TemplatesScreen';
-import { HistoryScreen } from './screens/HistoryScreen';
+import { NewsScreen } from './screens/NewsScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { ProfileSettingsScreen } from './screens/ProfileSettingsScreen';
 import { PreviewScreen } from './screens/PreviewScreen';
@@ -18,8 +18,8 @@ import { LoginOtpScreen } from './screens/LoginOtpScreen';
 import { VerifyOtpScreen } from './screens/VerifyOtpScreen';
 import { CreatePasswordScreen } from './screens/CreatePasswordScreen';
 import { ForgotPasswordScreen } from './screens/ForgotPasswordScreen';
-import { useAuthStore, useUIStore, getReporterPhoto, getReporterName, isAdminUser } from './store';
 import { AdminScreen } from './screens/AdminScreen';
+import { useAuthStore, useUIStore, getReporterPhoto, getReporterName, isAdminUser } from './store';
 import { supabase } from './lib/supabase';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
@@ -28,11 +28,13 @@ import { ErrorBoundary } from './ErrorBoundary';
 
 // Mobile Layout with Bottom Navigation
 const MainLayout = ({ children }: { children: React.ReactNode }) => {
-  const { t } = useTranslation();
+  // const { t } = useTranslation();
   const { user } = useAuthStore();
   const userAvatar = getReporterPhoto(user?.email) || user?.avatarUrl || (user as any)?.user_metadata?.avatar_url || (user as any)?.user_metadata?.picture || (user as any)?.avatar_url;
   const userName = getReporterName(user?.email) || (user as any)?.user_metadata?.full_name || (user as any)?.user_metadata?.name || user?.full_name || user?.firstName || 'Reporter';
   const userInitials = userName.split(' ').filter(Boolean).map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() || 'RP';
+
+  const headerBg = '#015BB3';
 
   return (
     <div className="flex flex-col h-screen bg-[#EEF3F8] transition-colors duration-300 relative font-sans">
@@ -68,80 +70,178 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
       </div>
 
 
-      <header className="w-full bg-[#0D1B2A] flex flex-col pt-safe sticky top-0 z-10 shadow-sm">
-        {/* ── Top meta row: EST. 2024 | INDIA  ·  REPORTER: username ── */}
-        <div className="w-full flex items-center justify-between px-4 pt-2 pb-1">
-          <span className="text-white/55 text-[10px] uppercase tracking-wider font-semibold">EST. 2024 | INDIA</span>
-          <span className="text-white/55 text-[10px] uppercase tracking-wider font-semibold">
-            REPORTER: {userName}
-          </span>
-        </div>
+      {/* Main Content Area — masthead scrolls with content on all devices */}
+      <main
+        className="flex-1 flex flex-col overflow-y-auto pb-[92px]"
+        style={{
+          position: 'relative',
+          zIndex: 3,
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain'
+        }}
+      >
+        {/* ── Masthead (scrolls with page) ── */}
+        <header className="w-full flex flex-col pt-safe" style={{ background: '#EAF2FB' }}>
+          <div style={{ background: headerBg, paddingBottom: '12px' }}>
+            {/* ── Main Header Content ── */}
+            <div className="w-full flex items-start justify-between px-3.5 pt-3.5 pb-2 gap-2">
+              {/* Left Column: Logo + Title + Date below */}
+              <div className="flex flex-col gap-1 shrink-0">
+                <div className="flex items-center gap-2">
+                  {/* Logo box */}
+                  <div className="rounded-[8px] flex items-center justify-center h-[46px] overflow-hidden bg-white p-1 border border-[#0B56A6]/20 shrink-0">
+                    <img src={mastheadLogo} alt="Spot News Logo" className="h-full w-auto object-contain" style={{ maxWidth: '92px', borderRadius: '4px' }} />
+                  </div>
+                  <div className="flex flex-col justify-center">
+                    <span className="font-bold text-white text-[23px] leading-[1.15] tracking-wide" style={{ fontFamily: "'Georgia', serif" }}>
+                      Spot News<br/>24x7
+                    </span>
+                  </div>
+                </div>
 
-        {/* ── Logo + Title row with Top-Right Profile Avatar ── */}
-        <div className="w-full flex items-center justify-between px-4 py-2">
-          <div className="flex items-center gap-3">
-            {/* Logo box */}
-            <div className="rounded-[8px] flex items-center justify-center h-[46px] overflow-hidden">
-              <img src={mastheadLogo} alt="RTI Express Logo" className="h-full w-auto object-contain" style={{ maxWidth: '90px', borderRadius: '4px' }} />
-            </div>
-            <div className="flex flex-col">
-              <span className="font-bold text-white text-[24px] leading-none tracking-widest" style={{ fontFamily: "'Georgia', serif" }}>{t.rtiExpress}</span>
-              <span className="text-white/50 text-[11px] uppercase font-bold tracking-widest mt-0.5">24X7</span>
+                {/* Date text (italic serif font) */}
+                <span className="text-white/90 text-[11.5px] tracking-wide font-medium font-serif italic pt-1 whitespace-nowrap">
+                  {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                </span>
+              </div>
+
+              {/* Right Column: Profile Avatar -> Reporter Name UP */}
+              <div className="flex flex-col items-end text-right pt-0.5 shrink-0">
+                <Link to="/settings" className="flex flex-col items-center gap-0.5 active:scale-95 transition-transform" title="Reporter Profile">
+                  {userAvatar ? (
+                    <img
+                      src={userAvatar}
+                      alt="Reporter Profile"
+                      className="w-11 h-11 rounded-full object-cover border-2 border-[#CC1E1E] shadow-sm bg-white"
+                    />
+                  ) : (
+                    <div className="w-11 h-11 rounded-full bg-[#1e3a5f] border-2 border-[#CC1E1E] flex items-center justify-center text-white font-bold text-sm shadow-sm">
+                      {userInitials}
+                    </div>
+                  )}
+                  <div className="flex flex-col items-center leading-tight text-center mt-1">
+                    <span className="text-white/80 text-[8.5px] uppercase tracking-wider font-extrabold">REPORTER:</span>
+                    <span className="text-white text-[9.5px] uppercase tracking-wider font-extrabold">{userName}</span>
+                  </div>
+                </Link>
+              </div>
             </div>
           </div>
 
-          {/* Top-Right Profile Avatar Badge */}
-          <Link to="/settings" className="flex items-center gap-2 active:scale-95 transition-transform" title="Reporter Profile">
-            {userAvatar ? (
-              <img
-                src={userAvatar}
-                alt="Reporter Profile"
-                className="w-10 h-10 rounded-full object-cover border-2 border-[#CC1E1E] shadow-md bg-white"
+          {/* ── Smooth Wave Divider Transition ── */}
+          <div style={{ width: '100%', overflow: 'hidden', lineHeight: 0, background: '#EAF2FB', position: 'relative' }}>
+            <svg
+              viewBox="0 0 1440 240"
+              preserveAspectRatio="none"
+              style={{ position: 'relative', display: 'block', width: '100%', height: '52px' }}
+            >
+              <path
+                d="M0,0 L1440,0 L1440,100 C1100,240 500,10 0,170 Z"
+                fill={headerBg}
               />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-[#1e3a5f] border-2 border-[#CC1E1E] flex items-center justify-center text-white font-bold text-sm shadow-md">
-                {userInitials}
-              </div>
-            )}
-          </Link>
-        </div>
+            </svg>
 
-        {/* ── Date bar ── */}
-        <div className="w-full flex items-center justify-center px-4 py-1.5 bg-[#0D1B2A]">
-          <span className="text-white/60 text-[11px] tracking-wide font-medium">
-            {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-          </span>
-        </div>
+            {/* Wanted reporters in the middle inside the wave in red */}
+            <div
+              style={{
+                position: 'absolute',
+                top: '2px',
+                left: 0,
+                width: '100%',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                zIndex: 2,
+                lineHeight: 1,
+                pointerEvents: 'auto'
+              }}
+            >
+              <a
+                href="tel:7668886666"
+                style={{
+                  color: '#FF3838',
+                  fontSize: '13px',
+                  fontWeight: 900,
+                  letterSpacing: '0.1px',
+                  fontFamily: "'Inter', sans-serif",
+                  textDecoration: 'none',
+                  display: 'inline-block',
+                  textShadow: '0 1px 2px rgba(0,0,0,0.5)'
+                }}
+              >
+                Wanted reporters:-7668886666
+              </a>
+            </div>
+          </div>
+        </header>
 
-        {/* ── Ticker bar ── */}
-        <div className="w-full bg-[#1e3a5f] py-2 px-4 flex items-center gap-3">
-          <span className="bg-white text-[#1e3a5f] text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full whitespace-nowrap">
-            {t.latest}
-          </span>
-          <span className="text-white text-[12px] truncate">
-            Wanted Reporters:7668886666
-          </span>
-        </div>
-      </header>
-
-      {/* Main Content Area (Scrollable) */}
-      <main className="flex-1 overflow-y-auto pb-4" style={{ position: 'relative', zIndex: 3 }}>
         <ErrorBoundary>
           {children}
         </ErrorBoundary>
       </main>
 
 
-      {/* Bottom Navigation */}
-      <nav className="bg-[#0a2540] fixed bottom-0 w-full pb-safe flex justify-center items-center gap-[64px] h-[78px] z-20">
-        {/* Plus Tab */}
-        <Link to="/generate" className="flex items-center justify-center w-[54px] h-[54px] bg-[#16334d] rounded-full text-[#dceef8] active:scale-95 transition-transform">
-          <Plus className="w-[26px] h-[26px]" strokeWidth={2} />
+      <nav className="fixed bottom-0 left-0 right-0 w-full pb-safe flex items-center justify-around h-[68px] z-30 shadow-md border-t border-[#E2EDF8]" style={{ background: '#FFFFFF' }}>
+        {/* 1. e-paper Tab */}
+        <a
+          href="https://www.fouziyapublications.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={async (e) => {
+            e.preventDefault();
+            try {
+              await Browser.open({ url: 'https://www.fouziyapublications.com/' });
+            } catch {
+              window.open('https://www.fouziyapublications.com/', '_blank');
+            }
+          }}
+          className="flex flex-col items-center justify-center flex-1 h-full pt-1 active:scale-95 transition-transform no-underline"
+          style={{ textDecoration: 'none' }}
+        >
+          <Newspaper className="w-6 h-6" style={{ color: '#0C447C' }} />
+          <span className="text-[11px] font-bold mt-1" style={{ color: '#0C447C' }}>
+            e-paper
+          </span>
+        </a>
+
+        {/* 2. Create Tab (Center Raised) */}
+        <Link
+          to="/generate"
+          className="flex flex-col items-center justify-center flex-1 relative h-full active:scale-95 transition-transform"
+        >
+          <div
+            className="absolute -top-5 w-[54px] h-[54px] rounded-full flex items-center justify-center"
+            style={{
+              background: '#FFFFFF',
+              border: '2.5px solid #CC1E1E',
+              padding: '3px',
+              boxShadow: '0 4px 12px rgba(204,30,30,0.22)',
+            }}
+          >
+            <div
+              className="w-full h-full rounded-full flex items-center justify-center"
+              style={{ background: '#CC1E1E' }}
+            >
+              <Plus className="w-7 h-7 text-white" strokeWidth={2.8} />
+            </div>
+          </div>
+          <span
+            className="text-[11px] font-bold mt-[26px]"
+            style={{ color: '#CC1E1E' }}
+          >
+            Create
+          </span>
         </Link>
 
-        {/* Settings Tab */}
-        <Link to="/settings" className="flex items-center justify-center w-[54px] h-[54px] bg-[#16334d] rounded-full text-[#dceef8] active:scale-95 transition-transform">
-          <Settings className="w-[26px] h-[26px]" strokeWidth={2} />
+        {/* 3. Settings Tab */}
+        <Link
+          to="/settings"
+          className="flex flex-col items-center justify-center flex-1 h-full pt-1 active:scale-95 transition-transform"
+        >
+          <Settings className="w-6 h-6" style={{ color: '#0C447C' }} />
+          <span className="text-[11px] font-bold mt-1" style={{ color: '#0C447C' }}>
+            Settings
+          </span>
         </Link>
       </nav>
     </div>
@@ -153,29 +253,27 @@ import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 
 function App() {
   const [isInitializing, setIsInitializing] = useState(true);
-  const [isAdminVerified, setIsAdminVerified] = useState(false);
-  // adminCheckDone: true once DB check finishes — splash stays up until then
-  const [adminCheckDone, setAdminCheckDone] = useState(false);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const user = useAuthStore((state) => state.user);
   const login = useAuthStore((state) => state.login);
   const updateUser = useAuthStore((state) => state.updateUser);
   const setPendingCropImageSrc = useUIStore((state) => state.setPendingCropImageSrc);
 
-  // ── Async admin role verification ─────────────────────────────────────────
-  // mohithroyal16450@gmail.com is the hardcoded SUPER ADMIN — always admin.
-  // For all other users: call the BACKEND API to check admin status.
-  // The backend checks its own SQLite DB (the real source of truth for roles).
-  // We do NOT use the Supabase profiles table because the CHECK constraint
-  // forbids plan='admin' and the upsert can silently fail.
+  const [isAdminVerified, setIsAdminVerified] = useState(false);
+
+  const isAdmin =
+    isAdminVerified ||
+    isAdminUser(user) ||
+    (user as any)?.role === 'admin' ||
+    (user as any)?.app_metadata?.role === 'admin' ||
+    (user as any)?.user_metadata?.role === 'admin';
+
   useEffect(() => {
     const checkAdminRole = async () => {
       if (!user?.id) {
         setIsAdminVerified(false);
-        setAdminCheckDone(true);
         return;
       }
-      // Fast path: super admin email or metadata
       if (
         isAdminUser(user) ||
         (user as any)?.role === 'admin' ||
@@ -183,11 +281,9 @@ function App() {
         (user as any)?.user_metadata?.role === 'admin'
       ) {
         setIsAdminVerified(true);
-        setAdminCheckDone(true);
         return;
       }
 
-      // Check 1: Supabase profiles table
       try {
         const { data: prof } = await supabase
           .from('profiles')
@@ -197,12 +293,10 @@ function App() {
         if (prof?.role === 'admin') {
           updateUser({ role: 'admin' } as any);
           setIsAdminVerified(true);
-          setAdminCheckDone(true);
           return;
         }
       } catch { /* silent */ }
 
-      // Check 2: Backend API — if /admin/stats returns 200, user is admin
       try {
         const token = useAuthStore.getState().token;
         if (token) {
@@ -218,13 +312,10 @@ function App() {
         }
       } catch {
         setIsAdminVerified(false);
-      } finally {
-        setAdminCheckDone(true);
       }
     };
-    setAdminCheckDone(false);
     checkAdminRole();
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   useEffect(() => {
     // Initialize Google Auth plugin
@@ -237,7 +328,7 @@ function App() {
     // Listen for deep links (e.g. Supabase OAuth callback)
     CapacitorApp.addListener('appUrlOpen', async (event) => {
       if (event.url.includes('access_token')) {
-        await Browser.close().catch(() => {});
+        await Browser.close().catch(() => { });
         const urlObj = new URL(event.url);
         // Supabase passes tokens in the hash like #access_token=...&refresh_token=...
         const hashStr = urlObj.hash.startsWith('#') ? urlObj.hash.substring(1) : urlObj.hash;
@@ -294,48 +385,43 @@ function App() {
     };
   }, []);
 
-  // Keep splash up until BOTH the 1200ms timer AND admin DB check are done
-  // so admin users never see a flash of the normal reporter app.
-  if (isInitializing || !adminCheckDone) return <SplashScreen />;
-
-  const isAdmin = isAdminUser(user) || isAdminVerified;
+  if (isInitializing) return <SplashScreen />;
 
   return (
     <Router>
       <Routes>
-        <Route 
-          path="/login" 
-          element={!isAuthenticated ? <LoginScreen /> : <Navigate to={user?.email === 'mohithroyal16450@gmail.com' ? "/admin" : "/"} replace />} 
+        <Route
+          path="/login"
+          element={!isAuthenticated ? <LoginScreen /> : <Navigate to="/" />}
         />
-
-        <Route 
-          path="/login/otp" 
-          element={!isAuthenticated ? <LoginOtpScreen /> : <Navigate to="/" />} 
+        <Route
+          path="/login/otp"
+          element={!isAuthenticated ? <LoginOtpScreen /> : <Navigate to="/" />}
         />
-        <Route 
-          path="/login/verify" 
-          element={!isAuthenticated ? <VerifyOtpScreen /> : <Navigate to="/" />} 
+        <Route
+          path="/login/verify"
+          element={!isAuthenticated ? <VerifyOtpScreen /> : <Navigate to="/" />}
         />
-        <Route 
-          path="/signup" 
-          element={!isAuthenticated ? <SignupScreen /> : <Navigate to="/" />} 
+        <Route
+          path="/signup"
+          element={!isAuthenticated ? <SignupScreen /> : <Navigate to="/" />}
         />
-        <Route 
-          path="/create-password" 
-          element={<CreatePasswordScreen />} 
+        <Route
+          path="/create-password"
+          element={<CreatePasswordScreen />}
         />
-        <Route 
-          path="/reset-password" 
-          element={<CreatePasswordScreen />} 
+        <Route
+          path="/reset-password"
+          element={<CreatePasswordScreen />}
         />
-        <Route 
-          path="/forgot-password" 
-          element={<ForgotPasswordScreen />} 
+        <Route
+          path="/forgot-password"
+          element={<ForgotPasswordScreen />}
         />
 
         {/* ── Admin Route (standalone, only for verified admins) ── */}
-        <Route 
-          path="/admin" 
+        <Route
+          path="/admin"
           element={
             !isAuthenticated ? (
               <Navigate to="/login" replace />
@@ -344,34 +430,35 @@ function App() {
             ) : (
               <Navigate to="/" replace />
             )
-          } 
+          }
         />
-        
-        <Route 
-          path="/preview/:id" 
-          element={isAuthenticated ? <PreviewScreen /> : <Navigate to="/login" />} 
+
+        <Route
+          path="/preview/:id"
+          element={isAuthenticated ? <PreviewScreen /> : <Navigate to="/login" />}
         />
-        
-        <Route 
-          path="/*" 
+
+        <Route
+          path="/*"
           element={
-            !isAuthenticated ? (
-              <Navigate to="/login" />
-            ) : (
+            isAuthenticated ? (
               <MainLayout>
                 <Routes>
                   <Route path="/" element={<GenerateScreen />} />
                   <Route path="/dashboard" element={<DashboardScreen />} />
                   <Route path="/generate" element={<GenerateScreen />} />
                   <Route path="/templates" element={<TemplatesScreen />} />
-                  <Route path="/history" element={<HistoryScreen />} />
+                  <Route path="/news" element={<NewsScreen />} />
+                  <Route path="/history" element={<NewsScreen />} />
                   <Route path="/settings" element={<SettingsScreen />} />
                   <Route path="/settings/profile" element={<ProfileSettingsScreen />} />
                   <Route path="*" element={<Navigate to="/" />} />
                 </Routes>
               </MainLayout>
+            ) : (
+              <Navigate to="/login" />
             )
-          } 
+          }
         />
       </Routes>
     </Router>
