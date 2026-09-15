@@ -61,10 +61,11 @@ if exist "%APK_PATH%" (
   echo ===================================================
   echo [SUCCESS] APK built successfully!
   echo Location: "%APK_PATH%"
-  echo ===================================================
   copy /y "%APK_PATH%" "%PROJECT_ROOT%Spot News 24x7.apk" >nul
+  copy /y "%APK_PATH%" "%PROJECT_ROOT%Spot-News-24x7.apk" >nul
   copy /y "%APK_PATH%" "%PROJECT_ROOT%..\Spot News 24x7.apk" >nul
-) else (
+  copy /y "%APK_PATH%" "%PROJECT_ROOT%..\Spot-News-24x7.apk" >nul
+  copy /y "%APK_PATH%" "%USERPROFILE%\Desktop\Spot-News-24x7.apk" >nul
   echo [ERROR] APK not found after build.
 )
 
