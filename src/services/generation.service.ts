@@ -165,12 +165,22 @@ export const generationService = {
     }, 120_000); // 2 minutes for image upload
 
     try {
-      const res = await fetch(`${API_URL}/uploads/image`, {
+      let res = await fetch(`${API_URL}/uploads/image`, {
         method:  "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body:    formData,
         signal:  controller.signal,
       });
+
+      // Fallback to /api/v1/uploads/image if root route is not found
+      if (res.status === 404) {
+        res = await fetch(`${API_URL}/api/v1/uploads/image`, {
+          method:  "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          body:    formData,
+          signal:  controller.signal,
+        });
+      }
 
       clearTimeout(uploadTimeoutId);
 
@@ -181,6 +191,9 @@ export const generationService = {
           errorDetail = errJson.detail || errJson.message || "";
         } catch (_) {}
 
+        if (res.status === 401) {
+          throw new Error("Authentication required. Please log in to your account and try uploading again.");
+        }
         if (res.status === 413) {
           throw new Error("File exceeds maximum allowed size of 10MB. 10MB is the limit.");
         }
@@ -194,6 +207,9 @@ export const generationService = {
       clearTimeout(uploadTimeoutId);
       if (e.name === "AbortError") {
         throw new Error("Image Upload Failed: Request timed out after 2 minutes. Check network and try a smaller image.");
+      }
+      if (e.message && e.message.toLowerCase().includes("failed to fetch")) {
+        throw new Error("Network connection to server failed. The backend may be waking up (Render cold start) or offline. Please wait 30 seconds and try again.");
       }
       log("Image Upload Error", e.message);
       throw e;
