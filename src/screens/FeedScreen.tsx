@@ -197,7 +197,7 @@ export const FeedScreen: React.FC = () => {
   }, [district, userState]);
 
   return (
-    <div className={`flex flex-col h-[100dvh] bg-black ${!isFullScreenFeed ? 'pb-[60px]' : ''}`}>
+    <div className="flex flex-col h-full w-full min-h-0 bg-black overflow-hidden relative">
       {!isFullScreenFeed && (
         <div className="flex-shrink-0 bg-white" style={{ paddingTop: '16px', paddingBottom: '14px' }}>
           <div className="flex items-center justify-between px-4">
@@ -224,7 +224,7 @@ export const FeedScreen: React.FC = () => {
         </div>
       )}
 
-      <div className="flex-1 w-full bg-black flex justify-center overflow-hidden">
+      <div className="flex-1 w-full min-h-0 bg-black flex justify-center overflow-hidden relative">
         {loading ? (
           <div className="p-12 text-center">
             <div className="w-8 h-8 rounded-full border-2 border-[#145AB1] border-t-transparent animate-spin mx-auto mb-2" />
@@ -241,7 +241,7 @@ export const FeedScreen: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div className="h-full w-full overflow-y-auto snap-y snap-mandatory no-scrollbar relative bg-black">
+          <div className="h-full w-full min-h-0 overflow-y-auto snap-y snap-mandatory no-scrollbar relative bg-black">
             {clippings.map((clip: any) => {
               const headline = clip.config?.headline || clip.headline || 'Breaking News';
               const content = clip.config?.articleContent || clip.content || '';
@@ -255,11 +255,11 @@ export const FeedScreen: React.FC = () => {
                     if (el) cardRefs.current.set(clip.id, el);
                     else cardRefs.current.delete(clip.id);
                   }}
-                  className="w-full h-full snap-start snap-always flex flex-col bg-black border-b border-gray-800 relative"
+                  className="w-full h-full snap-start snap-always flex flex-col bg-black border-b border-gray-800 relative overflow-hidden"
                 >
                   {/* Full Screen Generated Image */}
                   <div
-                    className="flex-1 w-full bg-black relative flex items-center justify-center overflow-hidden pb-[56px]"
+                    className="flex-1 w-full min-h-0 bg-black relative flex items-center justify-center overflow-hidden"
                     onClick={toggleFullScreenFeed}
                   >
                     {clip.png_url && (
@@ -283,7 +283,7 @@ export const FeedScreen: React.FC = () => {
                   </div>
 
                   {/* Bottom Action Bar */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-20 h-[56px] flex items-center justify-between px-3">
+                  <div className="w-full h-[56px] flex-shrink-0 bg-white border-t border-gray-200 z-20 flex items-center justify-between px-3 relative">
 
                     {/* Left: Like toggle + Dislike */}
                     <div className="flex items-center gap-3">

@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Settings, Plus, Newspaper, Globe } from 'lucide-react';
 // import { useTranslation } from './lib/i18n';
@@ -32,7 +32,9 @@ import { ErrorBoundary } from './ErrorBoundary';
 const MainLayout = ({ children }: { children: React.ReactNode }) => {
   // const { t } = useTranslation();
   const { user } = useAuthStore();
+  const location = useLocation();
   const isFullScreenFeed = useUIStore((state) => state.isFullScreenFeed);
+  const isFeedPage = location.pathname === '/';
   const userAvatar = getReporterPhoto(user?.email) || user?.avatarUrl || (user as any)?.user_metadata?.avatar_url || (user as any)?.user_metadata?.picture || (user as any)?.avatar_url;
   const userName = getReporterName(user?.email) || (user as any)?.user_metadata?.full_name || (user as any)?.user_metadata?.name || user?.full_name || user?.firstName || 'Reporter';
   const userInitials = userName.split(' ').filter(Boolean).map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() || 'RP';
@@ -40,7 +42,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
   const headerBg = '#015BB3';
 
   return (
-    <div className="flex flex-col h-screen bg-[#EEF3F8] transition-colors duration-300 relative font-sans">
+    <div className="flex flex-col h-screen h-[100dvh] bg-[#EEF3F8] transition-colors duration-300 relative font-sans overflow-hidden">
 
       {/* ══ RTI Express background watermark ══ */}
       <div
@@ -75,7 +77,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
 
       {/* Main Content Area — masthead scrolls with content on all devices */}
       <main
-        className="flex-1 flex flex-col overflow-y-auto pb-[92px]"
+        className={`flex-1 flex flex-col min-h-0 relative ${isFeedPage ? (isFullScreenFeed ? 'overflow-hidden pb-0' : 'overflow-hidden pb-[68px]') : 'overflow-y-auto pb-[92px]'}`}
         style={{
           position: 'relative',
           zIndex: 3,
