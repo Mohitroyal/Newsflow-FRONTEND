@@ -255,16 +255,16 @@ export const FeedScreen: React.FC = () => {
                     if (el) cardRefs.current.set(clip.id, el);
                     else cardRefs.current.delete(clip.id);
                   }}
-                  className="w-full h-full snap-start snap-always flex flex-col bg-black border-b border-gray-800 relative overflow-hidden"
+                  className="w-full h-full snap-start snap-always relative bg-black overflow-hidden"
                 >
                   {/* Full Screen Generated Image */}
                   <div
-                    className="flex-1 w-full min-h-0 bg-black relative flex items-center justify-center overflow-hidden"
+                    className="w-full h-full absolute inset-0 bg-black overflow-hidden flex items-center justify-center"
                     onClick={toggleFullScreenFeed}
                   >
                     {clip.png_url && (
                       <div
-                        className="absolute inset-0 opacity-30 scale-110 blur-xl bg-cover bg-center"
+                        className="absolute inset-0 opacity-40 scale-110 blur-xl bg-cover bg-center"
                         style={{ backgroundImage: `url(${clip.png_url})` }}
                       />
                     )}
@@ -272,10 +272,10 @@ export const FeedScreen: React.FC = () => {
                       <img
                         src={clip.png_url}
                         alt="News clipping"
-                        className="w-full h-full object-contain relative z-10"
+                        className="w-full h-full object-cover object-top relative z-10"
                       />
                     ) : (
-                      <div className="flex flex-col items-center text-[#6B7A90] relative z-10">
+                      <div className="flex flex-col items-center justify-center text-[#6B7A90] relative z-10">
                         <Newspaper className="w-16 h-16 mb-2 opacity-50" />
                         <span className="text-sm font-bold opacity-50">No Image Available</span>
                       </div>
@@ -283,7 +283,7 @@ export const FeedScreen: React.FC = () => {
                   </div>
 
                   {/* Bottom Action Bar */}
-                  <div className="w-full h-[56px] flex-shrink-0 bg-white border-t border-gray-200 z-20 flex items-center justify-between px-3 relative">
+                  <div className="absolute bottom-0 left-0 right-0 h-[56px] bg-white border-t border-gray-200 z-20 flex items-center justify-between px-3">
 
                     {/* Left: Like toggle + Dislike */}
                     <div className="flex items-center gap-3">
