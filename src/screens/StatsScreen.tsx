@@ -1,10 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '@/store';
 import { supabase } from '@/lib/supabase';
-import { 
-  BarChart3, Eye, Heart, MessageSquare, TrendingUp, Newspaper 
+import {
+  BarChart3, Eye, Heart, MessageSquare, TrendingUp, Newspaper, X
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+
+interface Comment {
+  id: string;
+  clipping_id: string;
+  user_name: string;
+  text: string;
+  created_at: string;
+}
 
 export const StatsScreen: React.FC = () => {
   const { user } = useAuthStore();
@@ -15,6 +23,11 @@ export const StatsScreen: React.FC = () => {
   const [totalViews, setTotalViews] = useState(0);
   const [totalLikes, setTotalLikes] = useState(0);
   const [totalComments, setTotalComments] = useState(0);
+
+  // Comments drawer
+  const [commentDrawer, setCommentDrawer] = useState<{ clipId: string; headline: string } | null>(null);
+  const [drawerComments, setDrawerComments] = useState<Comment[]>([]);
+  const [drawerLoading, setDrawerLoading] = useState(false);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -28,13 +41,12 @@ export const StatsScreen: React.FC = () => {
           .order('created_at', { ascending: false });
 
         if (error) throw error;
-        
+
         const feed = data || [];
         setClippings(feed);
 
-        // Calculate aggregates
         let views = 0, likes = 0, comments = 0;
-        feed.forEach(c => {
+        feed.forEach((c) => {
           views += c.views_count || 0;
           likes += c.likes_count || 0;
           comments += c.comments_count || 0;
@@ -53,14 +65,28 @@ export const StatsScreen: React.FC = () => {
     fetchStats();
   }, [user?.id]);
 
+  const openCommentDrawer = async (clipId: string, headline: string) => {
+    setCommentDrawer({ clipId, headline });
+    setDrawerLoading(true);
+    setDrawerComments([]);
+    try {
+      const { data } = await supabase
+        .from('lipping_comments')
+        .select('*')
+        .eq('clipping_id', clipId)
+        .order('created_at', { ascending: true });
+      setDrawerComments(data || []);
+    } catch {
+      setDrawerComments([]);
+    } finally {
+      setDrawerLoading(false);
+    }
+  };
+
   const formatDate = (isoStr?: string) => {
     if (!isoStr) return new Date().toLocaleDateString('en-IN');
     const d = new Date(isoStr);
-    return d.toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    });
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
   return (
@@ -87,7 +113,7 @@ export const StatsScreen: React.FC = () => {
             <span className="text-lg font-black text-[#0A2540]">{totalViews}</span>
             <span className="text-[9px] font-bold uppercase tracking-wider text-[#6B7A90]">Views</span>
           </motion.div>
-          
+
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white rounded-2xl p-3 border border-[#D0E2F7] shadow-sm flex flex-col items-center">
             <div className="w-8 h-8 rounded-full bg-red-50 text-red-600 flex items-center justify-center mb-1">
               <Heart className="w-4 h-4" />
@@ -146,10 +172,17 @@ export const StatsScreen: React.FC = () => {
                         <Heart className="w-3.5 h-3.5 text-red-500" />
                         <span className="text-[11px] font-bold text-slate-700">{clip.likes_count || 0}</span>
                       </div>
-                      <div className="flex items-center gap-1.5">
+
+                      {/* Tappable comment count → opens comment drawer */}
+                      <button
+                        className="flex items-center gap-1.5 active:scale-95 transition-transform"
+                        onClick={() => openCommentDrawer(clip.id, clip.headline || 'Breaking News')}
+                      >
                         <MessageSquare className="w-3.5 h-3.5 text-emerald-500" />
-                        <span className="text-[11px] font-bold text-slate-700">{clip.comments_count || 0}</span>
-                      </div>
+                        <span className="text-[11px] font-bold text-emerald-600 underline underline-offset-2">
+                          {clip.comments_count || 0}
+                        </span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -158,6 +191,63 @@ export const StatsScreen: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* ── Comments Drawer for Reporter ─────────────────────────────────────── */}
+      {commentDrawer && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col justify-end"
+          style={{ background: 'rgba(0,0,0,0.55)' }}
+          onClick={() => setCommentDrawer(null)}
+        >
+          <div
+            className="bg-white rounded-t-2xl flex flex-col"
+            style={{ maxHeight: '70vh' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-gray-100">
+              <div className="flex-1 pr-2">
+                <span className="text-sm font-bold text-[#0A2540]">
+                  Comments ({drawerComments.length})
+                </span>
+                <p className="text-[10px] text-gray-400 line-clamp-1 mt-0.5">{commentDrawer.headline}</p>
+              </div>
+              <button onClick={() => setCommentDrawer(null)} className="p-1 rounded-full hover:bg-gray-100">
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Comment List */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3" style={{ minHeight: 0 }}>
+              {drawerLoading ? (
+                <div className="flex justify-center py-8">
+                  <div className="w-6 h-6 rounded-full border-2 border-[#015BB3] border-t-transparent animate-spin" />
+                </div>
+              ) : drawerComments.length === 0 ? (
+                <p className="text-center text-xs text-gray-400 py-6">No comments yet on this post.</p>
+              ) : (
+                drawerComments.map((c) => (
+                  <div key={c.id} className="flex gap-2">
+                    <div className="w-7 h-7 rounded-full bg-[#015BB3] flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+                      {(c.user_name || 'A')[0].toUpperCase()}
+                    </div>
+                    <div className="bg-gray-50 rounded-2xl rounded-tl-none px-3 py-2 flex-1">
+                      <p className="text-[10px] font-bold text-[#015BB3] mb-0.5">{c.user_name}</p>
+                      <p className="text-[12px] text-gray-800 leading-snug">{c.text}</p>
+                      <p className="text-[9px] text-gray-400 mt-1">
+                        {new Date(c.created_at).toLocaleString('en-IN', {
+                          day: 'numeric', month: 'short',
+                          hour: '2-digit', minute: '2-digit'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
