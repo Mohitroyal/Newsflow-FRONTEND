@@ -120,13 +120,11 @@ export const FeedScreen: React.FC = () => {
 
       if (error) throw error;
 
-      // Bump comment count on clipping
-      const clip = clippings.find((c) => c.id === commentOpen);
-      const newCount = (clip?.comments_count || 0) + 1;
-      await supabase.from('clippings').update({ comments_count: newCount }).eq('id', commentOpen);
-
+      // Optimistic UI bump for comment count (trigger updates DB)
       setClippings((prev) =>
-        prev.map((c) => (c.id === commentOpen ? { ...c, comments_count: newCount } : c))
+        prev.map((c) =>
+          c.id === commentOpen ? { ...c, comments_count: (c.comments_count || 0) + 1 } : c
+        )
       );
       setComments((prev) => [...prev, data as Comment]);
       setCommentText('');
@@ -301,11 +299,11 @@ export const FeedScreen: React.FC = () => {
         >
           <div
             className="bg-white rounded-t-2xl flex flex-col"
-            style={{ maxHeight: '70vh' }}
+            style={{ height: '65vh' }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Handle + Header */}
-            <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-gray-100">
+            <div className="flex-shrink-0 flex items-center justify-between px-4 pt-3 pb-2 border-b border-gray-100">
               <span className="text-sm font-bold text-[#0A2540]">
                 Comments ({comments.length})
               </span>
@@ -314,8 +312,8 @@ export const FeedScreen: React.FC = () => {
               </button>
             </div>
 
-            {/* Comment List */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3" style={{ minHeight: 0 }}>
+            {/* Comment List — grows and scrolls */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
               {comments.length === 0 ? (
                 <p className="text-center text-xs text-gray-400 py-6">Be the first to comment!</p>
               ) : (
@@ -336,9 +334,10 @@ export const FeedScreen: React.FC = () => {
               )}
             </div>
 
-            {/* Input Row */}
-            <div className="flex items-center gap-2 px-4 py-3 border-t border-gray-100 bg-white"
-              style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}
+            {/* Input Row — fixed at bottom */}
+            <div
+              className="flex-shrink-0 flex items-center gap-2 px-4 py-3 border-t border-gray-100 bg-white"
+              style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
             >
               <input
                 ref={commentInputRef}

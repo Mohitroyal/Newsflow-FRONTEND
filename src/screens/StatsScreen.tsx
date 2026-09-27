@@ -201,7 +201,7 @@ export const StatsScreen: React.FC = () => {
         >
           <div
             className="bg-white rounded-t-2xl flex flex-col"
-            style={{ maxHeight: '70vh' }}
+            style={{ height: '65vh' }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
