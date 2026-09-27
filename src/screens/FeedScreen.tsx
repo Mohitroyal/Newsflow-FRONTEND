@@ -21,26 +21,8 @@ export const FeedScreen: React.FC = () => {
   const [clippings, setClippings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Persist viewed IDs across sessions using localStorage
-  const VIEWED_KEY = 'spotnews_viewed_clips';
-  const getPersistedViewed = (): Set<string> => {
-    try {
-      const raw = localStorage.getItem(VIEWED_KEY);
-      return new Set(raw ? JSON.parse(raw) : []);
-    } catch { return new Set(); }
-  };
-  const addPersistedViewed = (id: string) => {
-    try {
-      const existing = getPersistedViewed();
-      existing.add(id);
-      // Cap at 500 entries to avoid unlimited growth
-      const arr = Array.from(existing).slice(-500);
-      localStorage.setItem(VIEWED_KEY, JSON.stringify(arr));
-    } catch { /* ignore storage errors */ }
-  };
-
-  // In-memory set seeded from localStorage (fast O(1) lookups)
-  const viewedIds = useRef<Set<string>>(getPersistedViewed());
+  // In-memory session guard (prevents firing twice within a single scroll session)
+  const viewedIds = useRef<Set<string>>(new Set());
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Liked clipping IDs by this user (stored in state for toggle)
@@ -164,41 +146,51 @@ export const FeedScreen: React.FC = () => {
     }
   };
 
-  // ── Auto-view tracking via IntersectionObserver ───────────────────────────
+  // ── Auto-view tracking via IntersectionObserver + DB unique constraint ─────
+  // The clipping_views table has PRIMARY KEY (clipping_id, user_id) so the
+  // same user can NEVER insert twice — uniqueness is enforced at DB level.
   useEffect(() => {
-    if (clippings.length === 0) return;
+    if (clippings.length === 0 || !user?.id) return;
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach(async (entry) => {
           if (entry.isIntersecting) {
             const id = (entry.target as HTMLElement).dataset.clipId;
-            if (!id || viewedIds.current.has(id)) return;  // already seen on this device
-            // Mark as viewed both in memory AND localStorage
+            // In-memory guard: skip if already processed this scroll session
+            if (!id || viewedIds.current.has(id)) return;
             viewedIds.current.add(id);
-            addPersistedViewed(id);
-            // Optimistic UI
-            setClippings((prev) =>
-              prev.map((c) => (c.id === id ? { ...c, views_count: (c.views_count || 0) + 1 } : c))
-            );
-            // DB update
+
             try {
-              const clip = clippings.find((c) => c.id === id);
-              await supabase
-                .from('clippings')
-                .update({ views_count: (clip?.views_count || 0) + 1 })
-                .eq('id', id);
+              // Insert into clipping_views — will silently fail on duplicate
+              const { error } = await supabase
+                .from('clipping_views')
+                .insert({ clipping_id: id, user_id: user.id });
+
+              if (error) {
+                // Error code 23505 = unique violation = already viewed → skip
+                return;
+              }
+
+              // New unique view — optimistic UI update
+              setClippings((prev) =>
+                prev.map((c) =>
+                  c.id === id ? { ...c, views_count: (c.views_count || 0) + 1 } : c
+                )
+              );
+              // DB trigger (trg_sync_views_count) auto-increments views_count
             } catch (err) {
-              console.error('View count update failed', err);
+              console.error('View tracking failed', err);
             }
           }
         });
       },
-      { threshold: 0.6 } // card must be 60% visible to count as a view
+      { threshold: 0.6 }
     );
 
     cardRefs.current.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  }, [clippings.length]);
+  }, [clippings.length, user?.id]);
+
 
   useEffect(() => {
     fetchFeed();
