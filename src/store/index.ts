@@ -71,6 +71,10 @@ interface AuthStore {
   updateUser: (partial: Partial<User>) => void;
   otpState?: { phoneNumber: string; reqId: string } | null;
   setOtpState: (state: { phoneNumber: string; reqId: string } | null) => void;
+  district: string;
+  setDistrict: (district: string) => void;
+  userState: string;
+  setUserState: (state: string) => void;
 }
 
 export const useAuthStore = create<AuthStore>()(
@@ -113,6 +117,7 @@ export const useAuthStore = create<AuthStore>()(
           avatarUrl: existingPhoto || "",
           user_metadata: updatedMetadata,
           role:
+            (user as any)?.email?.toLowerCase() === 'mohitroyal116@gmail.com' ? 'reporter' :
             (user as any)?.role ||
             (user as any)?.user_metadata?.role ||
             (user as any)?.app_metadata?.role ||
@@ -167,6 +172,10 @@ export const useAuthStore = create<AuthStore>()(
         }),
       otpState: null,
       setOtpState: (otpState) => set({ otpState }),
+      district: 'Hyderabad',
+      setDistrict: (district) => set({ district }),
+      userState: 'Telangana',
+      setUserState: (userState) => set({ userState }),
     }),
     { name: "newscraft-auth" }
   )

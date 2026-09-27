@@ -23,8 +23,8 @@ export interface CompressionResult {
  */
 export async function compressImageToFit(
   file: File | Blob,
-  maxSizeBytes: number = 8 * 1024 * 1024, // 8 MB target ensures it is well under 10 MB
-  maxDimension: number = 2560
+  maxSizeBytes: number = 45 * 1024 * 1024, // 45 MB target ensures it is well under 50 MB
+  maxDimension: number = 8192
 ): Promise<CompressionResult> {
   return new Promise((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file);

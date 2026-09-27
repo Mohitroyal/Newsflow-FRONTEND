@@ -42,10 +42,10 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo [2/3] Syncing Capacitor assets...
-call node .\node_modules\@capacitor\cli\bin\capacitor copy android
+echo [2/3] Syncing Capacitor assets and plugins...
+call node .\node_modules\@capacitor\cli\bin\capacitor sync android
 if errorlevel 1 (
-  echo [ERROR] Capacitor copy failed.
+  echo [ERROR] Capacitor sync failed.
   popd
   exit /b 1
 )
@@ -66,6 +66,7 @@ if exist "%APK_PATH%" (
   copy /y "%APK_PATH%" "%PROJECT_ROOT%..\Spot News 24x7.apk" >nul
   copy /y "%APK_PATH%" "%PROJECT_ROOT%..\Spot-News-24x7.apk" >nul
   copy /y "%APK_PATH%" "%USERPROFILE%\Desktop\Spot-News-24x7.apk" >nul
+  copy /y "%APK_PATH%" "%PROJECT_ROOT%..\APK\Spot-News-24x7.apk" >nul
   echo [ERROR] APK not found after build.
 )
 

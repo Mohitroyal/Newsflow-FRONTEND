@@ -9,10 +9,10 @@
  */
 
 export const IMAGE_CONSTRAINTS = {
-  MAX_UPLOAD_SIZE: 10 * 1024 * 1024, // 10 MB limit
+  MAX_UPLOAD_SIZE: 50 * 1024 * 1024, // 50 MB limit
   MIN_UPLOAD_SIZE: 1,                 // Must be > 0 bytes
-  MAX_DIMENSION: 4096,                // Max width/height in px
-  MAX_PIXELS: 16_000_000,             // Max total pixels (16 Megapixels)
+  MAX_DIMENSION: 8192,                // Max width/height in px
+  MAX_PIXELS: 67_000_000,             // Max total pixels (67 Megapixels)
   ALLOWED_MIME_TYPES: ['image/jpeg', 'image/png', 'image/webp'],
   ALLOWED_EXTENSIONS: ['jpeg', 'jpg', 'png', 'webp'],
 } as const;
@@ -51,12 +51,12 @@ export async function validateImageFile(
     };
   }
 
-  // 2. Check maximum file size (10 MB limit)
+  // 2. Check maximum file size (50 MB limit)
   if (file.size > maxSize) {
     const sizeMb = (maxSize / (1024 * 1024)).toFixed(0);
     return {
       valid: false,
-      error: `File exceeds maximum allowed size of ${sizeMb}MB. 10MB is the limit.`,
+      error: `File exceeds maximum allowed size of ${sizeMb}MB. 50MB is the limit.`,
     };
   }
 

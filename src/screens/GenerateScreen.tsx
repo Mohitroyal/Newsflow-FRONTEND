@@ -228,11 +228,11 @@ export const GenerateScreen = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Check if file is larger than 10MB
-    if (file.size > 10 * 1024 * 1024) {
+    // Check if file is larger than 50MB
+    if (file.size > 50 * 1024 * 1024) {
       const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
       showImageWarning(
-        `Selected file size is ${sizeMb} MB. Maximum allowed limit is 10 MB. 10MB is the strict limit.`,
+        `Selected file size is ${sizeMb} MB. Maximum allowed limit is 50 MB. 50MB is the strict limit.`,
         'File Size Limit Exceeded',
         true,
         file
@@ -302,8 +302,8 @@ export const GenerateScreen = () => {
         showImageWarning('Empty file uploaded. File must be greater than 0 bytes.');
         return;
       }
-      if (croppedBlob.size > 10 * 1024 * 1024) {
-        showImageWarning('File exceeds maximum allowed size of 10MB. 10MB is the limit.');
+      if (croppedBlob.size > 50 * 1024 * 1024) {
+        showImageWarning('File exceeds maximum allowed size of 50MB. 50MB is the limit.');
         return;
       }
 

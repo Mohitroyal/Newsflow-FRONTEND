@@ -1,7 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useGenerationStore } from '@/store';
-import { ArrowLeft, Download, FileDown, Share2, MoreHorizontal, FileText } from 'lucide-react';
+import { useGenerationStore, useAuthStore } from '@/store';
+import { ArrowLeft, Download, FileDown, Share2, MoreHorizontal, FileText, Send, CheckCircle2 } from 'lucide-react';
 import { generationService } from '@/services/generation.service';
+import { supabase } from '@/lib/supabase';
 import { useState, useEffect, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
@@ -53,6 +54,12 @@ export const PreviewScreen = () => {
 
   const [downloading, setDownloading] = useState(false);
   const [isShareSheetOpen, setIsShareSheetOpen] = useState(false);
+  const [isPosting, setIsPosting] = useState(false);
+  const [isPosted, setIsPosted] = useState(false);
+  
+  const userState = useAuthStore((state) => state.userState) || '';
+  const district = useAuthStore((state) => state.district) || '';
+  
   const [pollAttempt, setPollAttempt]   = useState(0);
   const [elapsedMs,  setElapsedMs]      = useState(0);
   const [liveStage, setLiveStage]       = useState<string>('');
@@ -334,6 +341,33 @@ export const PreviewScreen = () => {
     }
   };
 
+  const handlePostToFeed = async () => {
+    if (!generation?.id) return;
+    if (!userState || !district) {
+      alert('Please set your State and District in the Settings before posting to the feed.');
+      return;
+    }
+    
+    setIsPosting(true);
+    try {
+      const { error } = await supabase
+        .from('clippings')
+        .update({ state: userState, district: district, is_posted: true })
+        .eq('id', generation.id);
+        
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+      setIsPosted(true);
+    } catch (err) {
+      console.error('Error posting to feed:', err);
+      alert('Failed to post to feed. Please try again.');
+    } finally {
+      setIsPosting(false);
+    }
+  };
+
   // ── Derived state for the progress UI ────────────────────────────────────
   const progressPercent = generation.progress ?? getProgress(liveStage || generation.stage);
   const timeLeft        = Math.max(0, MAX_POLL_MS - elapsedMs);
@@ -525,15 +559,39 @@ export const PreviewScreen = () => {
                   </button>
                 </div>
 
-                <button
-                  onClick={() => setIsShareSheetOpen(true)}
-                  disabled={downloading}
-                  className="w-full py-[14px] bg-[#dceef8] hover:bg-[#b8d4e8] active:bg-[#b8d4e8] text-[#0a2540] border-[1px] border-[#b8d4e8] rounded-[8px] font-bold text-xs tracking-wider uppercase transition-all flex items-center justify-center gap-2 shadow-sm hover:shadow-md animate-in slide-in-from-bottom-2 duration-300 delay-400 fill-mode-both relative overflow-hidden group"
-                >
-                  <div className="absolute inset-0 bg-white/40 translate-x-[-100%] group-hover:animate-[shimmerSweep_1s_ease-out]" />
-                  <Share2 className="w-4 h-4 shrink-0" />
-                  <span>Share</span>
-                </button>
+                <div className="flex w-full gap-2">
+                  <button
+                    onClick={() => setIsShareSheetOpen(true)}
+                    disabled={downloading || isPosting}
+                    className="flex-1 py-[14px] bg-[#dceef8] hover:bg-[#b8d4e8] active:bg-[#b8d4e8] text-[#0a2540] border-[1px] border-[#b8d4e8] rounded-[8px] font-bold text-xs tracking-wider uppercase transition-all flex items-center justify-center gap-2 shadow-sm hover:shadow-md animate-in slide-in-from-bottom-2 duration-300 delay-400 fill-mode-both relative overflow-hidden group"
+                  >
+                    <div className="absolute inset-0 bg-white/40 translate-x-[-100%] group-hover:animate-[shimmerSweep_1s_ease-out]" />
+                    <Share2 className="w-4 h-4 shrink-0" />
+                    <span>Share</span>
+                  </button>
+
+                  <button
+                    onClick={handlePostToFeed}
+                    disabled={downloading || isPosting || isPosted}
+                    className={`flex-1 py-[14px] rounded-[8px] font-bold text-xs tracking-wider uppercase transition-all flex items-center justify-center gap-2 shadow-sm animate-in slide-in-from-bottom-2 duration-300 delay-400 fill-mode-both relative overflow-hidden group ${
+                      isPosted 
+                        ? 'bg-[#25D366] text-white border-[1px] border-[#25D366]' 
+                        : 'bg-[#fff] hover:bg-[#f0f0f0] active:bg-[#e0e0e0] text-[#015BB3] border-[1px] border-[#015BB3]'
+                    }`}
+                  >
+                    {isPosted ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        <span>Posted</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 shrink-0" />
+                        <span>{isPosting ? 'Posting...' : 'Post to Feed'}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
              </div>
           </div>
         )}

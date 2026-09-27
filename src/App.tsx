@@ -1,6 +1,6 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { Settings, Plus, Newspaper } from 'lucide-react';
+import { Settings, Plus, Newspaper, Globe } from 'lucide-react';
 // import { useTranslation } from './lib/i18n';
 import mastheadLogo from './assets/rti_express_logo.png';
 import watermarkLogo from './assets/rti_express_watermark.png';
@@ -19,6 +19,8 @@ import { VerifyOtpScreen } from './screens/VerifyOtpScreen';
 import { CreatePasswordScreen } from './screens/CreatePasswordScreen';
 import { ForgotPasswordScreen } from './screens/ForgotPasswordScreen';
 import { AdminScreen } from './screens/AdminScreen';
+import { FeedScreen } from './screens/FeedScreen';
+import { StatsScreen } from './screens/StatsScreen';
 import { useAuthStore, useUIStore, getReporterPhoto, getReporterName, isAdminUser } from './store';
 import { supabase } from './lib/supabase';
 import { App as CapacitorApp } from '@capacitor/app';
@@ -204,40 +206,44 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
           </span>
         </a>
 
-        {/* 2. Create Tab (Center Raised) */}
-        <Link
-          to="/generate"
-          className="flex flex-col items-center justify-center flex-1 relative h-full active:scale-95 transition-transform"
-        >
-          <div
-            className="absolute -top-5 w-[54px] h-[54px] rounded-full flex items-center justify-center"
-            style={{
-              background: '#FFFFFF',
-              border: '2.5px solid #CC1E1E',
-              padding: '3px',
-              boxShadow: '0 4px 12px rgba(204,30,30,0.22)',
-            }}
-          >
-            <div
-              className="w-full h-full rounded-full flex items-center justify-center"
-              style={{ background: '#CC1E1E' }}
-            >
-              <Plus className="w-7 h-7 text-white" strokeWidth={2.8} />
-            </div>
-          </div>
-          <span
-            className="text-[11px] font-bold mt-[26px]"
-            style={{ color: '#CC1E1E' }}
-          >
-            Create
-          </span>
-        </Link>
+        {user?.role === 'reporter' ? (
+          <>
+            {/* 2. News Tab (Reporters) */}
+            <Link to="/" className="flex flex-col items-center justify-center flex-1 h-full pt-1 active:scale-95 transition-transform">
+              <Globe className="w-6 h-6" style={{ color: '#0C447C' }} />
+              <span className="text-[11px] font-bold mt-1" style={{ color: '#0C447C' }}>News</span>
+            </Link>
 
-        {/* 3. Settings Tab */}
-        <Link
-          to="/settings"
-          className="flex flex-col items-center justify-center flex-1 h-full pt-1 active:scale-95 transition-transform"
-        >
+            {/* 3. Center Raised Button (Create for reporters) */}
+            <Link to="/generate" className="flex flex-col items-center justify-center flex-1 relative h-full active:scale-95 transition-transform">
+              <div className="absolute -top-5 w-[54px] h-[54px] rounded-full flex items-center justify-center" style={{ background: '#FFFFFF', border: '2.5px solid #CC1E1E', padding: '3px', boxShadow: '0 4px 12px rgba(204,30,30,0.22)' }}>
+                <div className="w-full h-full rounded-full flex items-center justify-center" style={{ background: '#CC1E1E' }}>
+                  <Plus className="w-7 h-7 text-white" strokeWidth={2.8} />
+                </div>
+              </div>
+              <span className="text-[11px] font-bold mt-[26px]" style={{ color: '#CC1E1E' }}>Create</span>
+            </Link>
+
+            {/* 4. Stats Tab (Reporters) */}
+            <Link to="/stats" className="flex flex-col items-center justify-center flex-1 h-full pt-1 active:scale-95 transition-transform">
+              <svg className="w-6 h-6" style={{ color: '#0C447C' }} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+              <span className="text-[11px] font-bold mt-1" style={{ color: '#0C447C' }}>Stats</span>
+            </Link>
+          </>
+        ) : (
+          /* 2. Center Raised Button (News for users) */
+          <Link to="/" className="flex flex-col items-center justify-center flex-1 relative h-full active:scale-95 transition-transform">
+            <div className="absolute -top-5 w-[54px] h-[54px] rounded-full flex items-center justify-center" style={{ background: '#FFFFFF', border: '2.5px solid #0C447C', padding: '3px', boxShadow: '0 4px 12px rgba(12,68,124,0.22)' }}>
+              <div className="w-full h-full rounded-full flex items-center justify-center" style={{ background: '#0C447C' }}>
+                <Globe className="w-7 h-7 text-white" strokeWidth={2.5} />
+              </div>
+            </div>
+            <span className="text-[11px] font-bold mt-[26px]" style={{ color: '#0C447C' }}>News</span>
+          </Link>
+        )}
+
+        {/* 5. Settings Tab */}
+        <Link to="/settings" className="flex flex-col items-center justify-center flex-1 h-full pt-1 active:scale-95 transition-transform">
           <Settings className="w-6 h-6" style={{ color: '#0C447C' }} />
           <span className="text-[11px] font-bold mt-1" style={{ color: '#0C447C' }}>
             Settings
@@ -250,6 +256,21 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
 
 import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 
+function AppUrlListener() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const handleUrlOpen = (ev: Event) => {
+      const customEv = ev as CustomEvent;
+      const type = customEv.detail?.type;
+      if (type === 'recovery') {
+        navigate('/reset-password');
+      }
+    };
+    window.addEventListener('appUrlOpenRoute', handleUrlOpen);
+    return () => window.removeEventListener('appUrlOpenRoute', handleUrlOpen);
+  }, [navigate]);
+  return null;
+}
 
 function App() {
   const [isInitializing, setIsInitializing] = useState(true);
@@ -318,12 +339,19 @@ function App() {
   }, [user?.id]);
 
   useEffect(() => {
-    // Initialize Google Auth plugin
-    GoogleAuth.initialize({
-      clientId: '831106920430-h8h1nj7a5j2iirgki34ve8ariuj8uroi.apps.googleusercontent.com',
-      scopes: ['profile', 'email'],
-      grantOfflineAccess: true,
-    });
+    // Initialize Google Auth plugin (Web only, native handles it via config/strings.xml)
+    const isWeb = true;
+    if (isWeb) {
+      try {
+        GoogleAuth.initialize({
+          clientId: '831106920430-h8h1nj7a5j2iirgki34ve8ariuj8uroi.apps.googleusercontent.com',
+          scopes: ['profile', 'email'],
+          grantOfflineAccess: true,
+        });
+      } catch (e) {
+        console.warn("GoogleAuth initialize error:", e);
+      }
+    }
 
     // Listen for deep links (e.g. Supabase OAuth callback)
     CapacitorApp.addListener('appUrlOpen', async (event) => {
@@ -335,6 +363,7 @@ function App() {
         const params = new URLSearchParams(hashStr);
         const access_token = params.get('access_token');
         const refresh_token = params.get('refresh_token');
+        const type = urlObj.searchParams.get('type') || params.get('type');
 
         if (access_token && refresh_token) {
           const { data } = await supabase.auth.setSession({
@@ -343,6 +372,9 @@ function App() {
           });
           if (data.session) {
             login(data.session.user as any, data.session.access_token);
+            if (type === 'recovery') {
+              window.dispatchEvent(new CustomEvent('appUrlOpenRoute', { detail: { type: 'recovery' } }));
+            }
           }
         }
       }
@@ -372,7 +404,25 @@ function App() {
           firstName: savedName || (session.user as any)?.user_metadata?.full_name || '',
           avatarUrl: savedPhoto || (session.user as any)?.user_metadata?.avatar_url || (session.user as any)?.user_metadata?.picture || '',
         };
+        
+        // Publish refreshed credentials immediately; profile lookup must not
+        // leave API requests using the previous (possibly expired) token.
         login(userObj as any, session.access_token);
+        const fetchRole = async () => {
+          try {
+            const { data, error } = await supabase
+              .from('profiles')
+              .select('role')
+              .eq('id', session.user.id)
+              .single();
+            if (!error && data?.role && useAuthStore.getState().user?.id === session.user.id) {
+              updateUser({ role: data.role });
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        };
+        fetchRole();
       }
     });
 
@@ -389,6 +439,7 @@ function App() {
 
   return (
     <Router>
+      <AppUrlListener />
       <Routes>
         <Route
           path="/login"
@@ -444,9 +495,10 @@ function App() {
             isAuthenticated ? (
               <MainLayout>
                 <Routes>
-                  <Route path="/" element={<GenerateScreen />} />
+                  <Route path="/" element={<FeedScreen />} />
+                  <Route path="/stats" element={user?.role === 'reporter' ? <StatsScreen /> : <Navigate to="/" />} />
                   <Route path="/dashboard" element={<DashboardScreen />} />
-                  <Route path="/generate" element={<GenerateScreen />} />
+                  <Route path="/generate" element={user?.role === 'reporter' ? <GenerateScreen /> : <Navigate to="/" />} />
                   <Route path="/templates" element={<TemplatesScreen />} />
                   <Route path="/news" element={<NewsScreen />} />
                   <Route path="/history" element={<NewsScreen />} />
@@ -466,3 +518,4 @@ function App() {
 }
 
 export default App;
+

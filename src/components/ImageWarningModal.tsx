@@ -94,7 +94,7 @@ export const ImageWarningModal: React.FC<ImageWarningModalProps> = ({
                 {title}
               </h3>
               <span style={{ fontSize: '11px', color: '#C53030', fontWeight: 600 }}>
-                {canCompress ? '10 MB Limit Exceeded' : 'Upload Constraint Violation'}
+                {canCompress ? '50 MB Limit Exceeded' : 'Upload Constraint Violation'}
               </span>
             </div>
           </div>
@@ -225,7 +225,7 @@ export const ImageWarningModal: React.FC<ImageWarningModalProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ color: '#16A34A', fontWeight: 'bold' }}>✓</span>
                 <span>
-                  <strong>Maximum File Size:</strong> 10 MB (10MB is the limit)
+                  <strong>Maximum File Size:</strong> 50 MB (50MB is the limit)
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -237,7 +237,7 @@ export const ImageWarningModal: React.FC<ImageWarningModalProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ color: '#16A34A', fontWeight: 'bold' }}>✓</span>
                 <span>
-                  <strong>Max Dimensions:</strong> 4096 × 4096 px (Max 16 Megapixels)
+                  <strong>Max Dimensions:</strong> 8192 × 8192 px (Max 67 Megapixels)
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

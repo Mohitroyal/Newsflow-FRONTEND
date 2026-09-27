@@ -1,5 +1,6 @@
 import axios from "axios";
 import { useAuthStore } from "@/store";
+import { supabase } from "@/lib/supabase";
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}`
@@ -49,28 +50,73 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Share one refresh across simultaneous dashboard requests. Never replace a
+// mobile OTP login with a different, leftover Supabase session on the device.
+let tokenRefresh: Promise<string | null> | null = null;
+const recoverSessionToken = (): Promise<string | null> => {
+  if (!tokenRefresh) {
+    tokenRefresh = (async () => {
+      const userId = useAuthStore.getState().user?.id;
+      if (!userId) return null;
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.user.id !== userId) return null;
+      const { data: refreshed, error } = await supabase.auth.refreshSession();
+      if (error || !refreshed.session || refreshed.session.user.id !== userId ||
+          useAuthStore.getState().user?.id !== userId) return null;
+      const token = refreshed.session.access_token;
+      useAuthStore.setState({ token });
+      return token;
+    })().catch(() => null).finally(() => { tokenRefresh = null; });
+  }
+  return tokenRefresh;
+};
+
 // ─── Response Interceptor — Handle 401 ───────────────────────────────────────
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && originalRequest?._retry) {
+      try { await supabase.auth.signOut({ scope: 'local' }); } catch { /* already invalid */ }
+      useAuthStore.getState().logout();
+      if (typeof window !== "undefined" && window.location.pathname.startsWith("/admin")) {
+        window.location.href = "/login";
+      }
+      return Promise.reject(error);
+    }
+
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      // Do NOT redirect to login if we are on the preview/polling route.
+      const token = await recoverSessionToken();
+      if (token) {
+        originalRequest.headers.Authorization = `Bearer ${token}`;
+        return api(originalRequest);
+      }
+
+      // Supabase reports both expired JWTs and revoked/deleted sessions as
+      // 401. Clear the persisted Zustand state and Supabase session so the
+      // app cannot remain on /admin with a dead token indefinitely.
+      try { await supabase.auth.signOut({ scope: 'local' }); } catch { /* already invalid */ }
+      useAuthStore.getState().logout();
+
+      // Do NOT redirect to login if we are on the preview/polling route, or on the admin route.
       // A token expiry mid-generation would otherwise kick the user to the
       // login screen while Playwright is still rendering in the background.
-      const isPolling =
+      // Admin requests surface the authentication error in the dashboard.
+      // 401 means an invalid session; missing admin privileges are a 403.
+      const isPollingOrAdmin =
         typeof window !== "undefined" &&
-        window.location.pathname.startsWith("/preview");
+        (window.location.pathname.startsWith("/preview") || window.location.pathname.startsWith("/admin"));
 
-      if (!isPolling && typeof window !== "undefined") {
-        console.warn("[API] 401 received — logging out and redirecting to login.");
-        useAuthStore.getState().logout();
+      if (!isPollingOrAdmin && typeof window !== "undefined") {
+        console.warn("[API] 401 received — redirecting to login.");
+        window.location.href = "/login";
+      } else if (isPollingOrAdmin && typeof window !== "undefined" && window.location.pathname.startsWith("/admin")) {
         window.location.href = "/login";
       } else {
-        console.warn("[API] 401 received during generation polling — ignoring redirect.");
+        console.warn("[API] 401 received during generation polling; local session cleared.");
       }
     }
 

@@ -1,13 +1,36 @@
 import React, { useState } from 'react';
-import { Newspaper, Calendar, ChevronRight, X, Plus, RefreshCw, Eye, FileText, Pencil, Image as ImageIcon } from 'lucide-react';
-import { useGenerationStore } from '@/store';
+import { Newspaper, Calendar, ChevronRight, X, Plus, RefreshCw, Eye, FileText, Pencil, Image as ImageIcon, Send, Loader2 } from 'lucide-react';
+import { useGenerationStore, useAuthStore } from '@/store';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
 
 export const NewsScreen: React.FC = () => {
   const generations = useGenerationStore((state) => state.generations);
+  const { userState, district } = useAuthStore();
   const navigate = useNavigate();
   const [selectedGen, setSelectedGen] = useState<any | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isPosting, setIsPosting] = useState(false);
+  const [postedMap, setPostedMap] = useState<Record<string, boolean>>({});
+
+  const handlePostToFeed = async () => {
+    if (!selectedGen?.id) return;
+    setIsPosting(true);
+    try {
+      const { error } = await supabase
+        .from('clippings')
+        .update({ state: userState, district: district, is_posted: true })
+        .eq('id', selectedGen.id);
+        
+      if (!error) {
+        setPostedMap(prev => ({ ...prev, [selectedGen.id]: true }));
+      }
+    } catch (err) {
+      console.error('Error posting to feed:', err);
+    } finally {
+      setIsPosting(false);
+    }
+  };
 
   const safeGenerations = Array.isArray(generations) ? generations.filter(Boolean) : [];
 
@@ -122,10 +145,10 @@ export const NewsScreen: React.FC = () => {
                   {/* Content */}
                   <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
                     <div>
-                      {/* Active Logo Tag */}
+                      {/* Active Logo Tag / Publisher */}
                       <div className="flex items-center gap-1.5 mb-1.5">
                         <span className="px-2 py-0.5 rounded-md bg-[#0d4a8f] text-white text-[10px] font-extrabold uppercase tracking-wider">
-                          {activeLogo}
+                          Publisher: {activeLogo}
                         </span>
                       </div>
 
@@ -135,11 +158,11 @@ export const NewsScreen: React.FC = () => {
                       </h3>
                     </div>
 
-                    {/* Footer Date */}
+                    {/* Footer Date / Published */}
                     <div className="flex items-center justify-between text-[11px] text-[#6B7A90] mt-2 pt-2 border-t border-[#D0E2F7]/60">
                       <div className="flex items-center gap-1">
                         <Calendar className="w-3 h-3 text-[#0d4a8f]" />
-                        <span>{pubDate}</span>
+                        <span>Published: {pubDate}</span>
                       </div>
                       <ChevronRight className="w-4 h-4 text-[#0d4a8f]" />
                     </div>
@@ -216,24 +239,47 @@ export const NewsScreen: React.FC = () => {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 bg-[#E8F2FC] border-t border-[#D0E2F7] flex items-center justify-between gap-3">
-              <button
-                onClick={() => setSelectedGen(null)}
-                className="flex-1 py-2.5 px-4 rounded-xl border border-[#D0E2F7] bg-white text-[#0A2540] font-bold text-xs active:bg-gray-100 transition-colors"
-              >
-                Close
-              </button>
+            <div className="p-4 bg-[#E8F2FC] border-t border-[#D0E2F7] flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  onClick={() => setSelectedGen(null)}
+                  className="flex-1 py-2.5 px-4 rounded-xl border border-[#D0E2F7] bg-white text-[#0A2540] font-bold text-xs active:bg-gray-100 transition-colors"
+                >
+                  Close
+                </button>
+                {selectedGen?.id && (
+                  <button
+                    onClick={() => {
+                      const id = selectedGen.id;
+                      setSelectedGen(null);
+                      navigate(`/preview/${id}`);
+                    }}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-white border border-[#D0E2F7] text-[#0A2540] font-bold text-xs flex items-center justify-center gap-1.5 active:bg-gray-100 transition-colors"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Full Clipping</span>
+                  </button>
+                )}
+              </div>
+              
               {selectedGen?.id && (
                 <button
-                  onClick={() => {
-                    const id = selectedGen.id;
-                    setSelectedGen(null);
-                    navigate(`/preview/${id}`);
-                  }}
-                  className="flex-1 py-2.5 px-4 rounded-xl bg-[#0d4a8f] text-white font-bold text-xs flex items-center justify-center gap-1.5 active:bg-[#145AB1] shadow-sm transition-colors"
+                  onClick={handlePostToFeed}
+                  disabled={isPosting || postedMap[selectedGen.id]}
+                  className={`w-full py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-colors ${postedMap[selectedGen.id] ? 'bg-green-600 text-white' : 'bg-[#0d4a8f] text-white hover:bg-[#145AB1] active:bg-[#145AB1]'}`}
                 >
-                  <Eye className="w-3.5 h-3.5" />
-                  <span>Full Clipping</span>
+                  {isPosting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : postedMap[selectedGen.id] ? (
+                    <>
+                      <span>Posted to Feed!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Post to {district} Feed</span>
+                    </>
+                  )}
                 </button>
               )}
             </div>

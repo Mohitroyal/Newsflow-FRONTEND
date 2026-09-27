@@ -61,7 +61,9 @@ export const authService = {
   },
 
   async forgotPassword(email: string): Promise<ApiResponse<void>> {
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: "newscraft://auth-callback/",
+    });
     if (error) throw error;
     return {
       success: true,

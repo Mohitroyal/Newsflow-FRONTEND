@@ -7,6 +7,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 import { LogoWatermark } from '@/components/LogoWatermark';
 import logoUrl from '@/assets/rti_express_logo.png';
+import { INDIA_STATES } from '@/utils/indiaStates';
 
 export const SignupScreen = () => {
   const location = useLocation();
@@ -19,6 +20,8 @@ export const SignupScreen = () => {
   const [avatarUrl, setAvatarUrl] = useState<string>(passedAvatar);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [selectedState, setSelectedState] = useState('');
+  const [selectedDistrict, setSelectedDistrict] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const login = useAuthStore((state) => state.login);
   const navigate = useNavigate();
@@ -86,8 +89,33 @@ export const SignupScreen = () => {
           saveReporterPhoto(email.trim(), avatarUrl);
           supabase.auth.updateUser({ data: { avatar_url: avatarUrl } }).catch(() => {});
         }
-        login(userObj, res.data.token);
-        navigate('/');
+        
+        // Insert into reporter_applications
+        await supabase.from('reporter_applications').insert([
+          {
+            name: name.trim(),
+            email: email.trim(),
+            phone: '',
+            aadhar_card: '',
+            press_id: '',
+            status: 'pending',
+            state: selectedState,
+            district: selectedDistrict
+          }
+        ]);
+        
+        // Also update the profile with state/district
+        try {
+          await supabase.from('profiles').update({
+            state: selectedState,
+            district: selectedDistrict
+          }).eq('email', email.trim());
+        } catch {}
+
+        // Logout since they need admin approval
+        await authService.logout();
+        alert('Account created successfully. Your account is pending admin approval. You will be able to log in once approved.');
+        navigate('/login');
       }
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Failed to create account');
@@ -240,6 +268,36 @@ export const SignupScreen = () => {
                 required
                 minLength={6}
               />
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <select
+                value={selectedState}
+                onChange={(e) => {
+                  setSelectedState(e.target.value);
+                  setSelectedDistrict('');
+                }}
+                className="w-full bg-[#dceef8] rounded-[6px] py-[10px] px-3 text-[#0a1a2e] text-sm focus:outline-none focus:ring-1 focus:ring-[#0a2540] font-medium appearance-none"
+                required
+              >
+                <option value="" disabled>Select State</option>
+                {Object.keys(INDIA_STATES).map((state) => (
+                  <option key={state} value={state}>{state}</option>
+                ))}
+              </select>
+
+              <select
+                value={selectedDistrict}
+                onChange={(e) => setSelectedDistrict(e.target.value)}
+                className="w-full bg-[#dceef8] rounded-[6px] py-[10px] px-3 text-[#0a1a2e] text-sm focus:outline-none focus:ring-1 focus:ring-[#0a2540] font-medium appearance-none"
+                required
+                disabled={!selectedState}
+              >
+                <option value="" disabled>Select District</option>
+                {selectedState && INDIA_STATES[selectedState]?.map((dist) => (
+                  <option key={dist} value={dist}>{dist}</option>
+                ))}
+              </select>
             </div>
 
             <button

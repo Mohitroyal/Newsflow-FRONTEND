@@ -3,7 +3,6 @@ import { supabase } from '@/lib/supabase';
 import { Loader2, Lock, Eye, EyeOff, KeyRound } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '@/store';
-import { authService } from '@/services/auth.service';
 import { LogoWatermark } from '@/components/LogoWatermark';
 import logoUrl from '@/assets/rti_express_logo.png';
 
@@ -15,7 +14,6 @@ export const CreatePasswordScreen = () => {
   const [error, setError] = useState('');
   const [hasSession, setHasSession] = useState<boolean | null>(null);
   const navigate = useNavigate();
-  const login = useAuthStore((state) => state.login);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -48,24 +46,10 @@ export const CreatePasswordScreen = () => {
 
       if (updateError) throw updateError;
 
-      // 2. Get active session
-      const sessionData = await supabase.auth.getSession();
-      
-      if (sessionData.data.session) {
-        try {
-          await authService.getProfile();
-        } catch (e) {
-          console.log('Profile sync note:', e);
-        }
-
-        // 3. Log them in
-        login(sessionData.data.session.user as any, sessionData.data.session.access_token);
-        
-        // 4. Redirect to home
-        navigate('/');
-      } else {
-        navigate('/login', { state: { message: 'Password updated! Please sign in with your new password.' } });
-      }
+      // Ensure we log them out so they have to log in again with new password
+      await supabase.auth.signOut();
+      useAuthStore.getState().logout();
+      navigate('/login', { state: { message: 'Password updated! Please sign in with your new password.' } });
     } catch (err: any) {
       setError(err.message || 'Failed to update password');
     } finally {

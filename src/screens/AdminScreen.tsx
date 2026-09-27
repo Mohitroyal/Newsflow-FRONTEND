@@ -238,9 +238,10 @@ export const AdminScreen = () => {
 
   // ── State ─────────────────────────────────────────────────────────────────
   const isSuperAdmin = isSuperAdminUser(user);
-  const [activeTab, setActiveTab] = useState<'overview' | 'clippings' | 'users' | 'logos'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'clippings' | 'users' | 'logos' | 'applications'>('overview');
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<AdminUserProfile[]>([]);
+  const [usersError, setUsersError] = useState<string | null>(null);
   const [logos, setLogos] = useState<PublicationLogo[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -261,9 +262,13 @@ export const AdminScreen = () => {
   const [clippingsSearch, setClippingsSearch] = useState('');
   const [selectedClippingModal, setSelectedClippingModal] = useState<AdminClippingLog | null>(null);
 
+  // Applications state
+  const [applications, setApplications] = useState<any[]>([]);
+  const [applicationsLoading, setApplicationsLoading] = useState(false);
+
   // Guard tab for non-superadmin
   useEffect(() => {
-    if (!isSuperAdmin && activeTab === 'logos') {
+    if (!isSuperAdmin && (activeTab === 'logos' || activeTab === 'applications')) {
       setActiveTab('overview');
     }
   }, [isSuperAdmin, activeTab]);
@@ -294,15 +299,28 @@ export const AdminScreen = () => {
   // ── Data fetching ─────────────────────────────────────────────────────────
   const fetchAll = useCallback(async (fDate?: string, tDate?: string) => {
     setLoading(true);
+    setUsersError(null);
     try {
-      const [statsData, usersData, logosData] = await Promise.all([
+      const [statsResult, usersResult, logosResult] = await Promise.allSettled([
         getAdminStats(fDate, tDate),
         getAdminUsers(),
         getPublicationLogos(),
       ]);
-      setStats(statsData);
-      setUsers(usersData);
-      setLogos(logosData);
+      if (statsResult.status === 'fulfilled') setStats(statsResult.value);
+      if (logosResult.status === 'fulfilled') setLogos(logosResult.value);
+      if (usersResult.status === 'fulfilled') {
+        setUsers(usersResult.value);
+        // Keep the registered-account count consistent with the full directory.
+        setStats(current => current ? { ...current, totalUsers: usersResult.value.length } : current);
+      } else {
+        setUsers([]);
+        const status = usersResult.reason?.response?.status;
+        setUsersError(status === 401
+          ? 'Your session has expired. Please sign out and sign in again to load admin users.'
+          : status === 403
+            ? 'This account does not have permission to load the admin user list.'
+            : 'The complete user list could not be loaded. Please retry when the server is available.');
+      }
     } catch {
       showToast('Error loading admin dashboard data', 'error');
     } finally {
@@ -334,6 +352,56 @@ export const AdminScreen = () => {
       fetchClippings(fromDate || undefined, toDate || undefined);
     }
   }, [hasAccess, activeTab, fetchClippings, fromDate, toDate]);
+
+  const fetchApplications = useCallback(async () => {
+    setApplicationsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('reporter_applications')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setApplications(data || []);
+    } catch {
+      showToast('Failed to load reporter applications', 'error');
+    } finally {
+      setApplicationsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (hasAccess && activeTab === 'applications' && isSuperAdmin) {
+      fetchApplications();
+    }
+  }, [hasAccess, activeTab, isSuperAdmin, fetchApplications]);
+
+  const handleApplicationStatus = async (appId: string, email: string, status: 'approved' | 'rejected') => {
+    try {
+      const { error } = await supabase
+        .from('reporter_applications')
+        .update({ status })
+        .eq('id', appId);
+      if (error) throw error;
+      
+      // If approved, update the user's role in the profiles table
+      if (status === 'approved') {
+        const { error: roleError } = await supabase
+          .from('profiles')
+          .update({ role: 'reporter' })
+          .eq('email', email);
+          
+        if (roleError) {
+          console.error("Failed to update profile role:", roleError);
+          // Optional: handle role update error
+        }
+      }
+
+      showToast(`Application ${status} successfully.`, 'success');
+      fetchApplications();
+    } catch {
+      showToast(`Failed to update application status`, 'error');
+    }
+  };
 
   // ── Date presets ──────────────────────────────────────────────────────────
   const handleDatePreset = (preset: 'all' | 'today' | 'yesterday' | 'week' | 'month' | 'custom') => {
@@ -744,6 +812,15 @@ export const AdminScreen = () => {
       </header>
 
       {/* ── Segmented Navigation Tabs ── */}
+      {usersError && (
+        <div role="alert" className="max-w-5xl mx-auto mt-4 px-4">
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            <p>{usersError}</p>
+          <button disabled={loading} onClick={() => fetchAll(fromDate || undefined, toDate || undefined)}
+              className="mt-2 font-bold underline disabled:opacity-50">Retry loading users</button>
+          </div>
+        </div>
+      )}
       <div className="max-w-5xl mx-auto px-4 pt-4">
         <div className="bg-[#E8F2FC] border border-[#D0E2F7] rounded-2xl p-1 flex items-center gap-1 shadow-xs">
           <button
@@ -779,21 +856,35 @@ export const AdminScreen = () => {
             }`}
           >
             <Users className="w-4 h-4" />
-            <span>Users ({users.length})</span>
+            <span>{usersError ? 'Users (unavailable)' : `Users (${users.length})`}</span>
           </button>
 
           {isSuperAdmin && (
-            <button
-              onClick={() => setActiveTab('logos')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                activeTab === 'logos'
-                  ? 'bg-[#015BB3] text-white shadow-sm'
-                  : 'text-[#415A77] hover:bg-white/50'
-              }`}
-            >
-              <ImageIcon className="w-4 h-4" />
-              <span>Logos ({logos.length})</span>
-            </button>
+            <>
+              <button
+                onClick={() => setActiveTab('logos')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'logos'
+                    ? 'bg-[#015BB3] text-white shadow-sm'
+                    : 'text-[#415A77] hover:bg-white/50'
+                }`}
+              >
+                <ImageIcon className="w-4 h-4" />
+                <span>Logos ({logos.length})</span>
+              </button>
+              
+              <button
+                onClick={() => setActiveTab('applications')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'applications'
+                    ? 'bg-[#015BB3] text-white shadow-sm'
+                    : 'text-[#415A77] hover:bg-white/50'
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+                <span>Requests</span>
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -872,7 +963,7 @@ export const AdminScreen = () => {
                 icon={Users}
                 label="Total Users"
                 value={stats?.totalUsers ?? 0}
-                sub="Registered accounts"
+                sub={usersError ? 'User list unavailable' : 'Registered accounts'}
                 color="#015BB3"
                 bg="#E0F2FE"
               />
@@ -1279,7 +1370,7 @@ export const AdminScreen = () => {
             </div>
 
             {/* Empty State if no users match */}
-            {filteredUsers.length === 0 && (
+            {!usersError && filteredUsers.length === 0 && (
               <div className="bg-white border border-[#D0E2F7] rounded-2xl p-8 text-center">
                 <Users className="w-8 h-8 text-[#8FA3B8] mx-auto mb-2" />
                 <h4 className="text-sm font-bold text-[#0A2540]">No users found</h4>
@@ -1458,6 +1549,100 @@ export const AdminScreen = () => {
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {/* ═════════════════════════════════════════════════════════════════════ */}
+        {/* TAB: APPLICATIONS                                                    */}
+        {/* ═════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'applications' && isSuperAdmin && (
+          <div className="space-y-4">
+            <div className="bg-white border border-[#D0E2F7] rounded-2xl p-4 shadow-sm flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-[#0A2540]">Reporter Requests</h3>
+                <p className="text-xs text-[#6B7A90] mt-0.5">Review and approve or reject new reporter registrations</p>
+              </div>
+              <button
+                onClick={() => fetchApplications()}
+                disabled={applicationsLoading}
+                className="px-3 py-2 rounded-xl bg-[#015BB3] text-white text-xs font-bold flex items-center gap-1.5 shadow-xs"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${applicationsLoading ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </button>
+            </div>
+
+            {applicationsLoading ? (
+              <div className="p-12 text-center">
+                <div className="w-8 h-8 rounded-full border-2 border-[#015BB3] border-t-transparent animate-spin mx-auto mb-2" />
+                <p className="text-xs text-[#6B7A90] font-bold">Loading applications…</p>
+              </div>
+            ) : applications.length === 0 ? (
+              <div className="bg-white border border-[#D0E2F7] rounded-2xl p-10 text-center shadow-sm">
+                <FileText className="w-12 h-12 text-[#8FA3B8] mx-auto mb-2 opacity-50" />
+                <p className="text-sm font-bold text-[#0A2540]">No Applications Found</p>
+                <p className="text-xs text-[#6B7A90] mt-1">There are currently no reporter applications to review.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {applications.map((app) => (
+                  <div key={app.id} className="bg-white border border-[#D0E2F7] rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="text-sm font-bold text-[#0A2540]">{app.name}</h4>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                          app.status === 'pending' ? 'bg-amber-100 text-amber-800' :
+                          app.status === 'approved' ? 'bg-emerald-100 text-emerald-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {app.status}
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-1 mt-3">
+                        <div className="flex items-center gap-2 text-xs text-[#6B7A90]">
+                          <span className="font-semibold w-24">Email:</span>
+                          <span className="text-[#0A2540]">{app.email}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-[#6B7A90]">
+                          <span className="font-semibold w-24">Phone:</span>
+                          <span className="text-[#0A2540]">{app.phone}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-[#6B7A90]">
+                          <span className="font-semibold w-24">Aadhar Card:</span>
+                          <span className="text-[#0A2540]">{app.aadhar_card}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-[#6B7A90]">
+                          <span className="font-semibold w-24">Press ID:</span>
+                          <span className="text-[#0A2540]">{app.press_id}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-[#6B7A90]">
+                          <span className="font-semibold w-24">Submitted:</span>
+                          <span className="text-[#0A2540]">{formatDate(app.created_at)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {app.status === 'pending' && (
+                      <div className="flex items-center gap-2 mt-4 pt-3 border-t border-[#E8F2FC]">
+                        <button
+                          onClick={() => handleApplicationStatus(app.id, app.email, 'approved')}
+                          className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-colors shadow-xs flex items-center justify-center gap-1.5"
+                        >
+                          <Check className="w-4 h-4" /> Approve
+                        </button>
+                        <button
+                          onClick={() => handleApplicationStatus(app.id, app.email, 'rejected')}
+                          className="flex-1 py-2 bg-white border border-red-200 text-red-600 hover:bg-red-50 active:bg-red-100 text-xs font-bold rounded-xl transition-colors shadow-xs flex items-center justify-center gap-1.5"
+                        >
+                          <X className="w-4 h-4" /> Reject
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

@@ -2,11 +2,12 @@ import { useState, useRef, useEffect } from 'react';
 import { useAuthStore, getReporterPhoto, saveReporterPhoto, isAdminUser } from '@/store';
 import { authService } from '@/services/auth.service';
 import { supabase } from '@/lib/supabase';
-import { Loader2, Mail, Lock, Camera, Phone, User as UserIcon } from 'lucide-react';
+import { Loader2, Mail, Lock, Camera, Phone, User as UserIcon, MapPin } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 import logoUrl from '@/assets/rti_express_logo.png';
 import watermarkLogo from '@/assets/rti_express_watermark.png';
+import { INDIA_STATES } from '@/utils/indiaStates';
 
 export const LoginScreen = () => {
   const [email, setEmail] = useState('');
@@ -14,8 +15,26 @@ export const LoginScreen = () => {
   const [avatarUrl, setAvatarUrl] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const [activeTab, setActiveTab] = useState<'login' | 'apply'>('login');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Reporter Application state
+  const [applyForm, setApplyForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    aadhar: '',
+    pressId: '',
+    state: '',
+    district: ''
+  });
+
   const login = useAuthStore((state) => state.login);
+  const district = useAuthStore((state) => state.district);
+  const setDistrict = useAuthStore((state) => state.setDistrict);
+  const userState = useAuthStore((state) => state.userState);
+  const setUserState = useAuthStore((state) => state.setUserState);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -79,6 +98,35 @@ export const LoginScreen = () => {
       const res = await authService.login({ email, password });
       if (res.data) {
         const userObj = { ...res.data.user };
+        
+        // Check application status
+        try {
+          const { data: appData } = await supabase
+            .from('reporter_applications')
+            .select('status')
+            .eq('email', email.trim())
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (appData) {
+            if (appData.status === 'pending') {
+              await authService.logout();
+              setError('Your account is pending admin approval.');
+              setLoading(false);
+              return;
+            }
+            if (appData.status === 'rejected') {
+              await authService.logout();
+              setError('Your reporter application was rejected.');
+              setLoading(false);
+              return;
+            }
+          }
+        } catch (e) {
+          // ignore if not found
+        }
+
         try {
           const { data: profile } = await supabase
             .from('profiles')
@@ -97,20 +145,62 @@ export const LoginScreen = () => {
           supabase.auth.updateUser({ data: { avatar_url: finalPhoto } }).catch(() => {});
         }
         login(userObj, res.data.token);
-        navigate(isAdminUser(userObj) ? '/admin' : '/');
+        
+        // Role based access logic
+        if (isAdminUser(userObj)) {
+          navigate('/admin');
+        } else if (userObj.role === 'reporter') {
+          navigate('/');
+        } else {
+          // Normal user goes to some user view, but currently everything is reporter portal
+          navigate('/'); 
+        }
       }
     } catch (err: any) {
       const errMsg = err.message || err.response?.data?.message || '';
       if (
         errMsg.toLowerCase().includes('invalid login credentials') ||
-        errMsg.toLowerCase().includes('invalid_credentials') ||
-        errMsg.toLowerCase().includes('user not found') ||
-        errMsg.toLowerCase().includes('invalid_grant')
+        errMsg.toLowerCase().includes('invalid_credentials')
+      ) {
+        setError('Invalid email or password. Please check your credentials and try again.');
+        setShowSignupPrompt(false);
+      } else if (
+        errMsg.toLowerCase().includes('user not found')
       ) {
         setShowSignupPrompt(true);
       } else {
         setError(errMsg || 'Failed to login. Please try again.');
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApplySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setSuccessMsg('');
+    try {
+      // Create reporter application in supabase
+      const { error: applyError } = await supabase.from('reporter_applications').insert([
+        {
+          name: applyForm.name,
+          email: applyForm.email,
+          phone: applyForm.phone,
+          aadhar_card: applyForm.aadhar,
+          press_id: applyForm.pressId,
+          status: 'pending',
+          state: applyForm.state,
+          district: applyForm.district
+        }
+      ]);
+      if (applyError) throw applyError;
+      
+      setSuccessMsg('Your application has been submitted to the superadmin for approval. You will receive an email once approved.');
+      setApplyForm({ name: '', email: '', phone: '', aadhar: '', pressId: '', state: '', district: '' });
+    } catch (err: any) {
+      setError(err.message || 'Failed to submit application.');
     } finally {
       setLoading(false);
     }
@@ -249,10 +339,32 @@ export const LoginScreen = () => {
             
             {/* WELCOME TEXT */}
             <h1 className="text-[#163E6C] text-2xl font-bold font-serif mb-1.5" style={{ fontFamily: "'Georgia', serif" }}>
-              Welcome Back, Journalist
+              {activeTab === 'login' ? 'Welcome Back' : 'Reporter Application'}
             </h1>
             <div className="w-12 h-[3px] bg-[#CC1E1E] rounded-full"></div>
           </div>
+
+          {/* TABS */}
+          <div className="flex bg-[#EAF2FB] rounded-lg p-1 mb-6 border border-[#D6E4F5]">
+            <button
+              onClick={() => { setActiveTab('login'); setError(''); setSuccessMsg(''); }}
+              className={`flex-1 py-2 text-sm font-bold rounded-md transition-colors ${activeTab === 'login' ? 'bg-white text-[#0F487F] shadow-sm' : 'text-[#64748B] hover:text-[#0F487F]'}`}
+            >
+              Login
+            </button>
+            <button
+              onClick={() => { setActiveTab('apply'); setError(''); setSuccessMsg(''); }}
+              className={`flex-1 py-2 text-sm font-bold rounded-md transition-colors ${activeTab === 'apply' ? 'bg-white text-[#0F487F] shadow-sm' : 'text-[#64748B] hover:text-[#0F487F]'}`}
+            >
+              Apply as Reporter
+            </button>
+          </div>
+
+          {successMsg && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-500 rounded-[10px] text-green-700 text-xs font-semibold text-center shadow-sm">
+              {successMsg}
+            </div>
+          )}
 
           {showSignupPrompt && (
             <div className="mb-5 p-4 bg-amber-50 border-2 border-amber-400 rounded-xl text-[#0F172A] text-xs shadow-sm flex flex-col gap-2.5">
@@ -279,82 +391,237 @@ export const LoginScreen = () => {
             </div>
           )}
 
-          {/* REPORTER PHOTO SELECTOR */}
-          <div className="flex flex-col items-center justify-center mb-5">
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="relative w-20 h-20 rounded-full border-2 border-[#CC1E1E] bg-[#EAF2FB] flex items-center justify-center cursor-pointer hover:opacity-90 active:scale-95 transition-all shadow-md group overflow-hidden"
-            >
-              {avatarUrl ? (
-                <img src={avatarUrl} alt="Reporter" className="w-full h-full object-cover" />
-              ) : (
-                <div className="flex flex-col items-center justify-center text-[#0F487F]">
-                  <UserIcon className="w-8 h-8 text-[#0F487F]/60 mb-0.5" />
-                  <span className="text-[8px] font-bold uppercase tracking-wider text-[#0F487F]/70">Photo</span>
-                  <div className="absolute bottom-1 right-1 bg-[#CC1E1E] text-white rounded-full p-1 shadow-sm">
-                    <Camera className="w-3 h-3" />
+          {activeTab === 'login' ? (
+            <>
+              {/* REPORTER PHOTO SELECTOR */}
+              <div className="flex flex-col items-center justify-center mb-5">
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="relative w-20 h-20 rounded-full border-2 border-[#CC1E1E] bg-[#EAF2FB] flex items-center justify-center cursor-pointer hover:opacity-90 active:scale-95 transition-all shadow-md group overflow-hidden"
+                >
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt="Reporter" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-[#0F487F]">
+                      <UserIcon className="w-8 h-8 text-[#0F487F]/60 mb-0.5" />
+                      <span className="text-[8px] font-bold uppercase tracking-wider text-[#0F487F]/70">Photo</span>
+                      <div className="absolute bottom-1 right-1 bg-[#CC1E1E] text-white rounded-full p-1 shadow-sm">
+                        <Camera className="w-3 h-3" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleAvatarChange}
+                  accept="image/*"
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-[#0F487F] text-xs font-bold mt-2 hover:underline flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Camera className="w-3.5 h-3.5 text-[#CC1E1E]" />
+                  {avatarUrl ? 'Change Reporter Photo' : 'Upload Reporter Photo'}
+                </button>
+                <span className="text-[10.5px] text-[#64748B] font-medium text-center mt-0.5">
+                  Will be placed on your newspaper clippings &amp; app header
+                </span>
+              </div>
+
+              <form onSubmit={handleLogin} className="space-y-3.5">
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F487F]" />
+                  <input
+                    type="email"
+                    placeholder="Email Address"
+                    value={email}
+                    onChange={handleEmailChange}
+                    className="w-full bg-white border border-[#D6E4F5] rounded-[10px] py-[11px] pl-[38px] pr-3 text-[#0F172A] text-sm placeholder:text-[#94A3B8] focus:outline-none focus:border-[#015BB3] focus:ring-2 focus:ring-[#015BB3]/15 transition-all shadow-sm font-medium"
+                    required
+                  />
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  <div className="relative">
+                    <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F487F]" />
+                    <select
+                      value={userState}
+                      onChange={(e) => {
+                        setUserState(e.target.value);
+                        setDistrict('');
+                      }}
+                      className="w-full bg-white border border-[#D6E4F5] rounded-[10px] py-[11px] pl-[38px] pr-3 text-[#0F172A] text-sm focus:outline-none focus:border-[#015BB3] focus:ring-2 focus:ring-[#015BB3]/15 transition-all shadow-sm font-medium appearance-none"
+                      required
+                    >
+                      <option value="" disabled>Select State</option>
+                      {Object.keys(INDIA_STATES).map((st) => (
+                        <option key={st} value={st}>{st}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="relative">
+                    <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F487F]" />
+                    <select
+                      value={district}
+                      onChange={(e) => setDistrict(e.target.value)}
+                      className="w-full bg-white border border-[#D6E4F5] rounded-[10px] py-[11px] pl-[38px] pr-3 text-[#0F172A] text-sm focus:outline-none focus:border-[#015BB3] focus:ring-2 focus:ring-[#015BB3]/15 transition-all shadow-sm font-medium appearance-none"
+                      required
+                      disabled={!userState}
+                    >
+                      <option value="" disabled>Select District</option>
+                      {userState && INDIA_STATES[userState]?.map((dist) => (
+                        <option key={dist} value={dist}>{dist}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
-              )}
-            </div>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleAvatarChange}
-              accept="image/*"
-              className="hidden"
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="text-[#0F487F] text-xs font-bold mt-2 hover:underline flex items-center gap-1.5 cursor-pointer"
-            >
-              <Camera className="w-3.5 h-3.5 text-[#CC1E1E]" />
-              {avatarUrl ? 'Change Reporter Photo' : 'Upload Reporter Photo'}
-            </button>
-            <span className="text-[10.5px] text-[#64748B] font-medium text-center mt-0.5">
-              Will be placed on your newspaper clippings &amp; app header
-            </span>
-          </div>
 
-          <form onSubmit={handleLogin} className="space-y-3.5">
-            <div className="relative">
-              <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F487F]" />
-              <input
-                type="email"
-                placeholder="Email Address"
-                value={email}
-                onChange={handleEmailChange}
-                className="w-full bg-white border border-[#D6E4F5] rounded-[10px] py-[11px] pl-[38px] pr-3 text-[#0F172A] text-sm placeholder:text-[#94A3B8] focus:outline-none focus:border-[#015BB3] focus:ring-2 focus:ring-[#015BB3]/15 transition-all shadow-sm font-medium"
-                required
-              />
-            </div>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F487F]" />
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-white border border-[#D6E4F5] rounded-[10px] py-[11px] pl-[38px] pr-3 text-[#0F172A] text-sm placeholder:text-[#94A3B8] focus:outline-none focus:border-[#015BB3] focus:ring-2 focus:ring-[#015BB3]/15 transition-all shadow-sm font-medium"
+                    required
+                  />
+                </div>
+                <div className="flex justify-end -mt-1 mb-1">
+                  <Link to="/forgot-password" state={{ email }} className="text-[11.5px] font-bold text-[#CC1E1E] hover:underline">
+                    Forgot Password?
+                  </Link>
+                </div>
 
-            <div className="relative">
-              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F487F]" />
-              <input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-white border border-[#D6E4F5] rounded-[10px] py-[11px] pl-[38px] pr-3 text-[#0F172A] text-sm placeholder:text-[#94A3B8] focus:outline-none focus:border-[#015BB3] focus:ring-2 focus:ring-[#015BB3]/15 transition-all shadow-sm font-medium"
-                required
-              />
-            </div>
-            <div className="flex justify-end -mt-1 mb-1">
-              <Link to="/forgot-password" state={{ email }} className="text-[11.5px] font-bold text-[#CC1E1E] hover:underline">
-                Forgot Password?
-              </Link>
-            </div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-[12px] mt-1 bg-[#CC1E1E] hover:bg-[#b51919] active:bg-[#991515] text-white rounded-[10px] font-bold text-[15px] font-serif tracking-wide transition-all shadow-[0_2px_8px_rgba(204,30,30,0.25)] flex items-center justify-center disabled:opacity-70 cursor-pointer"
+                >
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
+                </button>
+              </form>
+            </>
+          ) : (
+            <form onSubmit={handleApplySubmit} className="space-y-3.5">
+              <div className="relative">
+                <UserIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F487F]" />
+                <input
+                  type="text"
+                  placeholder="Full Name"
+                  value={applyForm.name}
+                  onChange={(e) => setApplyForm({...applyForm, name: e.target.value})}
+                  className="w-full bg-white border border-[#D6E4F5] rounded-[10px] py-[11px] pl-[38px] pr-3 text-[#0F172A] text-sm placeholder:text-[#94A3B8] focus:outline-none focus:border-[#015BB3] focus:ring-2 focus:ring-[#015BB3]/15 transition-all shadow-sm font-medium"
+                  required
+                />
+              </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-[12px] mt-1 bg-[#CC1E1E] hover:bg-[#b51919] active:bg-[#991515] text-white rounded-[10px] font-bold text-[15px] font-serif tracking-wide transition-all shadow-[0_2px_8px_rgba(204,30,30,0.25)] flex items-center justify-center disabled:opacity-70 cursor-pointer"
-            >
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
-            </button>
-          </form>
+              <div className="relative">
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F487F]" />
+                <input
+                  type="email"
+                  placeholder="Email Address"
+                  value={applyForm.email}
+                  onChange={(e) => setApplyForm({...applyForm, email: e.target.value})}
+                  className="w-full bg-white border border-[#D6E4F5] rounded-[10px] py-[11px] pl-[38px] pr-3 text-[#0F172A] text-sm placeholder:text-[#94A3B8] focus:outline-none focus:border-[#015BB3] focus:ring-2 focus:ring-[#015BB3]/15 transition-all shadow-sm font-medium"
+                  required
+                />
+              </div>
+
+              <div className="relative">
+                <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F487F]" />
+                <input
+                  type="tel"
+                  placeholder="Phone Number"
+                  value={applyForm.phone}
+                  onChange={(e) => setApplyForm({...applyForm, phone: e.target.value})}
+                  className="w-full bg-white border border-[#D6E4F5] rounded-[10px] py-[11px] pl-[38px] pr-3 text-[#0F172A] text-sm placeholder:text-[#94A3B8] focus:outline-none focus:border-[#015BB3] focus:ring-2 focus:ring-[#015BB3]/15 transition-all shadow-sm font-medium"
+                  required
+                />
+              </div>
+
+              <div className="relative">
+                <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F487F]" />
+                <input
+                  type="text"
+                  placeholder="Enter District (e.g. Hyderabad)"
+                  value={district}
+                  onChange={(e) => setDistrict(e.target.value)}
+                  className="w-full bg-white border border-[#D6E4F5] rounded-[10px] py-[11px] pl-[38px] pr-3 text-[#0F172A] text-sm placeholder:text-[#94A3B8] focus:outline-none focus:border-[#015BB3] focus:ring-2 focus:ring-[#015BB3]/15 transition-all shadow-sm font-medium"
+                  required
+                />
+              </div>
+
+              <div className="relative">
+                <UserIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F487F]" />
+                <input
+                  type="text"
+                  placeholder="Aadhar Card Number"
+                  value={applyForm.aadhar}
+                  onChange={(e) => setApplyForm({...applyForm, aadhar: e.target.value})}
+                  className="w-full bg-white border border-[#D6E4F5] rounded-[10px] py-[11px] pl-[38px] pr-3 text-[#0F172A] text-sm placeholder:text-[#94A3B8] focus:outline-none focus:border-[#015BB3] focus:ring-2 focus:ring-[#015BB3]/15 transition-all shadow-sm font-medium"
+                  required
+                />
+              </div>
+
+              <div className="relative">
+                <UserIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F487F]" />
+                <input
+                  type="text"
+                  placeholder="Press ID"
+                  value={applyForm.pressId}
+                  onChange={(e) => setApplyForm({...applyForm, pressId: e.target.value})}
+                  className="w-full bg-white border border-[#D6E4F5] rounded-[10px] py-[11px] pl-[38px] pr-3 text-[#0F172A] text-sm placeholder:text-[#94A3B8] focus:outline-none focus:border-[#015BB3] focus:ring-2 focus:ring-[#015BB3]/15 transition-all shadow-sm font-medium"
+                  required
+                />
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <div className="relative">
+                  <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F487F]" />
+                  <select
+                    value={applyForm.state}
+                    onChange={(e) => setApplyForm({ ...applyForm, state: e.target.value, district: '' })}
+                    className="w-full bg-white border border-[#D6E4F5] rounded-[10px] py-[11px] pl-[38px] pr-3 text-[#0F172A] text-sm focus:outline-none focus:border-[#015BB3] focus:ring-2 focus:ring-[#015BB3]/15 transition-all shadow-sm font-medium appearance-none"
+                    required
+                  >
+                    <option value="" disabled>Select State</option>
+                    {Object.keys(INDIA_STATES).map((st) => (
+                      <option key={st} value={st}>{st}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="relative">
+                  <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F487F]" />
+                  <select
+                    value={applyForm.district}
+                    onChange={(e) => setApplyForm({ ...applyForm, district: e.target.value })}
+                    className="w-full bg-white border border-[#D6E4F5] rounded-[10px] py-[11px] pl-[38px] pr-3 text-[#0F172A] text-sm focus:outline-none focus:border-[#015BB3] focus:ring-2 focus:ring-[#015BB3]/15 transition-all shadow-sm font-medium appearance-none"
+                    required
+                    disabled={!applyForm.state}
+                  >
+                    <option value="" disabled>Select District</option>
+                    {applyForm.state && INDIA_STATES[applyForm.state]?.map((dist) => (
+                      <option key={dist} value={dist}>{dist}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-[12px] mt-2 bg-[#CC1E1E] hover:bg-[#b51919] active:bg-[#991515] text-white rounded-[10px] font-bold text-[15px] font-serif tracking-wide transition-all shadow-[0_2px_8px_rgba(204,30,30,0.25)] flex items-center justify-center disabled:opacity-70 cursor-pointer"
+              >
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Submit Application'}
+              </button>
+            </form>
+          )}
 
           <div className="mt-5 flex items-center justify-center gap-3">
             <div className="h-px bg-[#D6E4F5] flex-1"></div>

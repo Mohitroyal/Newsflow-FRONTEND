@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore, useUIStore, useGenerationStore, getReporterPhoto, getReporterName, isAdminUser, isSuperAdminUser } from '@/store';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Moon, Trash2, Shield, Check, QrCode, LogOut, AlertTriangle, User as UserIcon, UserCircle, ChevronRight, FileText, History, Crown, Loader2 } from 'lucide-react';
+import { Bell, Moon, Trash2, Shield, Check, QrCode, LogOut, AlertTriangle, User as UserIcon, UserCircle, ChevronRight, FileText, History, Crown, Loader2, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 import { useTranslation } from '@/lib/i18n';
 import { authService } from '@/services/auth.service';
+import { INDIA_STATES } from '@/utils/indiaStates';
 
 function ToggleSwitch({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
   return (
@@ -69,7 +70,7 @@ function Toast({ message, type }: { message: string; type: 'success' | 'error' }
 }
 
 export const SettingsScreen = () => {
-  const { user, logout } = useAuthStore();
+  const { user, logout, userState, setUserState, district, setDistrict } = useAuthStore();
   const resetGenerations = useGenerationStore((state) => state.resetConfig);
   const navigate = useNavigate();
 
@@ -419,6 +420,49 @@ export const SettingsScreen = () => {
           </div>
         )}
 
+        {/* Location Preferences */}
+        <SettingsSection title="Content Location" icon={MapPin}>
+          <div className="px-5 py-4 space-y-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-bold text-[#0A2540]">Select State</label>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F487F]" />
+                <select
+                  value={userState || ''}
+                  onChange={(e) => {
+                    setUserState(e.target.value);
+                    setDistrict('');
+                  }}
+                  className="w-full bg-[#F3F6FB] border border-[#DCE6F0] rounded-[10px] py-[9px] pl-[34px] pr-3 text-[#0A2540] text-sm focus:outline-none focus:border-[#015BB3] appearance-none font-medium"
+                >
+                  <option value="" disabled>Select State</option>
+                  {Object.keys(INDIA_STATES).map((st) => (
+                    <option key={st} value={st}>{st}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-bold text-[#0A2540]">Select District</label>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0F487F]" />
+                <select
+                  value={district || ''}
+                  onChange={(e) => setDistrict(e.target.value)}
+                  disabled={!userState}
+                  className="w-full bg-[#F3F6FB] border border-[#DCE6F0] rounded-[10px] py-[9px] pl-[34px] pr-3 text-[#0A2540] text-sm focus:outline-none focus:border-[#015BB3] appearance-none font-medium disabled:opacity-50"
+                >
+                  <option value="" disabled>Select District</option>
+                  {userState && INDIA_STATES[userState]?.map((dist) => (
+                    <option key={dist} value={dist}>{dist}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        </SettingsSection>
+
         {/* Appearance */}
         <SettingsSection title={t.appearance} icon={Moon}>
 
@@ -498,6 +542,22 @@ export const SettingsScreen = () => {
             control={<ToggleSwitch enabled={tfaEnabled} onToggle={handleTfaToggle} />}
           />
         </SettingsSection>
+
+        {/* ── Contact Us Button ── */}
+        <button
+          onClick={() => window.open('https://mohitroyal.github.io/spotnews/contact-us', '_blank')}
+          className="w-full flex items-center justify-between px-5 py-4 bg-[#F3F6FB] border border-[#DCE6F0] rounded-2xl shadow-sm active:scale-[0.98] transition-all duration-200 group mb-3"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-9 h-9 rounded-xl bg-[#D6E9FF] flex items-center justify-center transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#015BB3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4c0-1.1.9-2 2-2h8a2 2 0 0 1 2 2v5Z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/></svg>
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-bold text-[#0A2540]">Contact Us</p>
+              <p className="text-xs text-[#6B7A90] mt-0.5">Get help or send feedback</p>
+            </div>
+          </div>
+        </button>
 
         {/* ── Professional Logout Button ─────────────────────────────────────── */}
         <button

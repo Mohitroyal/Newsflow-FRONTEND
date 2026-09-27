@@ -10,7 +10,7 @@ export interface AdminUserProfile {
   email: string;
   phone_number?: string;
   full_name: string;
-  role: 'admin' | 'reporter' | 'user';
+  role: 'superadmin' | 'admin' | 'reporter' | 'user';
   plan: string;
   created_at: string;
   last_sign_in_at?: string;
@@ -79,6 +79,7 @@ export interface AdminStats {
   rangeActiveUsers?: number | null;
   fromDate?: string | null;
   toDate?: string | null;
+  debug_info?: string;
 }
 
 export interface AdminClippingLog {
@@ -134,7 +135,7 @@ export const getAdminStats = async (fromDate?: string, toDate?: string): Promise
   // 1. Try Backend API first for full database accurate stats
   try {
     const res = await api.get('/api/v1/admin/stats', { params });
-    if (res.data && typeof res.data.totalUsers === 'number') {
+    if (res.data && typeof res.data.totalUsers === 'number' && res.data.totalUsers > 0) {
       const logos = await getPublicationLogos();
       return {
         totalUsers: res.data.totalUsers,
@@ -199,6 +200,8 @@ export const getAdminStats = async (fromDate?: string, toDate?: string): Promise
     }
 
     const fallbackLogos = await getPublicationLogos();
+    
+    const debugMsg = `U: ${usersRes.count}|${usersRes.error?.message} P: ${profilesRes.count}|${profilesRes.error?.message}`;
 
     return {
       totalUsers: totalUsersCount,
@@ -210,8 +213,9 @@ export const getAdminStats = async (fromDate?: string, toDate?: string): Promise
       rangeActiveUsers: rangeActiveUsersCount,
       fromDate: fromDate ?? null,
       toDate: toDate ?? null,
+      debug_info: debugMsg,
     };
-  } catch {
+  } catch (err: any) {
     return {
       totalUsers: 0,
       totalGenerationsToday: 0,
@@ -222,6 +226,7 @@ export const getAdminStats = async (fromDate?: string, toDate?: string): Promise
       rangeActiveUsers: null,
       fromDate: fromDate ?? null,
       toDate: toDate ?? null,
+      debug_info: 'CATCH: ' + String(err?.message || err),
     };
   }
 };
@@ -326,230 +331,20 @@ export const getAdminClippings = async (options?: {
 };
 
 // ─── Users ────────────────────────────────────────────────────────────────────
-export const getAdminUsers = async (): Promise<AdminUserProfile[]> => {
-  // Pre-fetch activity / clippings created today and all-time to accurately determine active status & count
-  const activeUserIdsToday = new Set<string>();
-  const todayGenMap: Record<string, number> = {};
-  const allTimeGenMap: Record<string, number> = {};
-
-  try {
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
-    const [{ data: allClips }, { data: todayClips }, { data: todayActs }] = await Promise.all([
-      supabase.from('clippings').select('user_id'),
-      supabase.from('clippings').select('user_id').gte('created_at', todayStart),
-      supabase.from('user_activity').select('user_id').gte('created_at', todayStart),
-    ]);
-
-    (allClips ?? []).forEach((c: any) => {
-      if (c.user_id) {
-        const uid = String(c.user_id);
-        allTimeGenMap[uid] = (allTimeGenMap[uid] ?? 0) + 1;
-      }
-    });
-
-    (todayClips ?? []).forEach((c: any) => {
-      if (c.user_id) {
-        const uid = String(c.user_id);
-        activeUserIdsToday.add(uid);
-        todayGenMap[uid] = (todayGenMap[uid] ?? 0) + 1;
-      }
-    });
-
-    (todayActs ?? []).forEach((a: any) => {
-      if (a.user_id) activeUserIdsToday.add(String(a.user_id));
-    });
-  } catch {
-    /* non-blocking */
-  }
-
-  const isWithinLast24HoursOrToday = (dateStr?: string | null): boolean => {
-    if (!dateStr) return false;
-    try {
-      const d = new Date(dateStr);
-      const now = new Date();
-      const diffMs = now.getTime() - d.getTime();
-      if (diffMs >= 0 && diffMs <= 24 * 60 * 60 * 1000) return true;
-      return (
-        d.getFullYear() === now.getFullYear() &&
-        d.getMonth() === now.getMonth() &&
-        d.getDate() === now.getDate()
-      );
-    } catch {
-      return false;
-    }
-  };
-
-  // 1. Primary: Use Backend auth-users endpoint (returns ALL Supabase Auth users + Mobile OTP users)
-  try {
-    const res = await api.get('/api/v1/admin/auth-users');
-    if (Array.isArray(res.data) && res.data.length > 0) {
-      return res.data.map((u: any) => {
-        const uid = String(u.id || '');
-        const isSignInToday = isWithinLast24HoursOrToday(u.last_sign_in_at);
-        const genToday = Math.max(typeof u.generations_today === 'number' ? u.generations_today : 0, todayGenMap[uid] ?? 0);
-        const totalGen = Math.max(typeof u.total_generations === 'number' ? u.total_generations : 0, allTimeGenMap[uid] ?? 0);
-        const isActiveToday = activeUserIdsToday.has(uid) || isSignInToday || genToday > 0;
-
-        const isPhoneUser = Boolean(
-          u.provider === 'phone' ||
-          (u.email && u.email.endsWith('@phone.user')) ||
-          (!u.email && u.phone_number)
-        );
-        const defaultName = isPhoneUser
-          ? (u.phone_number ? `User (${u.phone_number})` : 'Mobile User')
-          : (u.email ? u.email.split('@')[0] : 'User');
-
-        return {
-          id: uid,
-          email: u.email || '',
-          phone_number: u.phone_number || '',
-          full_name: u.full_name || u.name || defaultName,
-          role: u.role || 'user',
-          plan: u.plan || 'free',
-          created_at: u.created_at || '',
-          last_sign_in_at: u.last_sign_in_at || undefined,
-          total_generations: totalGen,
-          generations_today: genToday,
-          is_active_today: isActiveToday,
-          avatar_url: u.avatar_url || '',
-          preferred_language: u.preferred_language || 'English',
-          is_banned: Boolean(u.banned_until || u.is_banned),
-          banned_until: u.banned_until || null,
-        };
-      });
-    }
-  } catch (err) {
-    console.warn('[AdminService] Backend auth-users endpoint unavailable, trying /users:', err);
-  }
-
-  // 2. Secondary: Backend /users endpoint
-  try {
-    const res = await api.get('/api/v1/admin/users');
-    if (Array.isArray(res.data) && res.data.length > 0) {
-      return res.data.map((u: any) => {
-        const uid = String(u.id || '');
-        const isSignInToday = isWithinLast24HoursOrToday(u.last_sign_in_at);
-        const genToday = Math.max(typeof u.generations_today === 'number' ? u.generations_today : 0, todayGenMap[uid] ?? 0);
-        const totalGen = Math.max(typeof u.total_generations === 'number' ? u.total_generations : 0, allTimeGenMap[uid] ?? 0);
-        const isActiveToday = activeUserIdsToday.has(uid) || isSignInToday || genToday > 0;
-
-        const isPhoneUser = Boolean(
-          u.provider === 'phone' ||
-          (u.email && u.email.endsWith('@phone.user')) ||
-          (!u.email && u.phone_number)
-        );
-        const defaultName = isPhoneUser
-          ? (u.phone_number ? `User (${u.phone_number})` : 'Mobile User')
-          : (u.email ? u.email.split('@')[0] : 'User');
-
-        return {
-          id: uid,
-          email: u.email || '',
-          phone_number: u.phone_number || '',
-          full_name: u.full_name || u.name || defaultName,
-          role: u.role || 'user',
-          plan: u.plan || 'free',
-          created_at: u.created_at || '',
-          last_sign_in_at: u.last_sign_in_at || undefined,
-          total_generations: totalGen,
-          generations_today: genToday,
-          is_active_today: isActiveToday,
-          avatar_url: u.avatar_url || '',
-          preferred_language: u.preferred_language || 'English',
-          is_banned: Boolean(u.banned_until || u.is_banned),
-          banned_until: u.banned_until || null,
-        };
-      });
-    }
-  } catch (err) {
-    console.warn('[AdminService] Backend users endpoint unavailable, falling back to Supabase client query:', err);
-  }
-
-  // 3. Fallback: Supabase Client Query
-  try {
-    const [{ data: users }, { data: profiles }, { data: genData }] = await Promise.all([
-      supabase.from('users').select('id, email, full_name, avatar_url, created_at, preferred_language, phone_number').order('created_at', { ascending: false }),
-      supabase.from('profiles').select('id, role, plan, last_sign_in_at, is_banned, phone_number'),
-      supabase.from('clippings').select('user_id'),
-    ]);
-
-    const profileMap: Record<string, any> = {};
-    (profiles ?? []).forEach((p: any) => { profileMap[p.id] = p; });
-
-    const genCountMap: Record<string, number> = {};
-    (genData ?? []).forEach((row: any) => {
-      if (row.user_id) genCountMap[row.user_id] = (genCountMap[row.user_id] ?? 0) + 1;
-    });
-
-    const userMap = new Map<string, AdminUserProfile>();
-
-    (users ?? []).forEach((u: any) => {
-      const uid = String(u.id);
-      const isSignInToday = isWithinLast24HoursOrToday(profileMap[uid]?.last_sign_in_at);
-      const genToday = todayGenMap[uid] ?? 0;
-      const isActiveToday = activeUserIdsToday.has(uid) || isSignInToday || genToday > 0;
-
-      userMap.set(uid, {
-        id: uid,
-        email: u.email ?? '',
-        phone_number: u.phone_number ?? profileMap[uid]?.phone_number ?? '',
-        full_name: u.full_name ?? '',
-        avatar_url: u.avatar_url ?? '',
-        created_at: u.created_at ?? '',
-        preferred_language: u.preferred_language ?? 'English',
-        role: profileMap[uid]?.role ?? 'user',
-        plan: profileMap[uid]?.plan ?? 'free',
-        last_sign_in_at: profileMap[uid]?.last_sign_in_at,
-        total_generations: genCountMap[uid] ?? 0,
-        generations_today: genToday,
-        is_active_today: isActiveToday,
-        is_banned: Boolean(profileMap[uid]?.is_banned),
-      });
-    });
-
-    // Also include any profiles not in users table
-    (profiles ?? []).forEach((p: any) => {
-      const uid = String(p.id);
-      if (!userMap.has(uid)) {
-        const isSignInToday = isWithinLast24HoursOrToday(p.last_sign_in_at);
-        const genToday = todayGenMap[uid] ?? 0;
-        const isActiveToday = activeUserIdsToday.has(uid) || isSignInToday || genToday > 0;
-
-        userMap.set(uid, {
-          id: uid,
-          email: p.email ?? '',
-          phone_number: p.phone_number ?? '',
-          full_name: p.full_name ?? 'User',
-          avatar_url: '',
-          created_at: p.created_at ?? '',
-          preferred_language: 'English',
-          role: p.role ?? 'user',
-          plan: p.plan ?? 'free',
-          last_sign_in_at: p.last_sign_in_at,
-          total_generations: genCountMap[uid] ?? 0,
-          generations_today: genToday,
-          is_active_today: isActiveToday,
-          is_banned: Boolean(p.is_banned),
-        });
-      }
-    });
-
-    return Array.from(userMap.values());
-  } catch {
-    return [];
-  }
-};
+export { getAdminUsers } from './admin-users.service';
 
 // ─── Edit User Role / Plan ────────────────────────────────────────────────────
 export const updateUserRole = async (
   userId: string,
-  role: 'admin' | 'reporter' | 'user',
-  phoneNumber?: string
+  role: 'superadmin' | 'admin' | 'reporter' | 'user',
+  phoneNumber?: string,
+  plan?: string
 ): Promise<{ success: boolean; error?: string }> => {
+  const targetPlan = plan || (role === 'superadmin' ? 'superadmin' : (role === 'admin' ? 'admin' : (role === 'reporter' ? 'reporter' : 'free')));
+
   // 1. Primary: Use Backend API (runs with service_role key, safely bypassing RLS)
   try {
-    const payload: any = { role };
+    const payload: any = { role, plan: targetPlan };
     if (phoneNumber && phoneNumber.trim()) {
       payload.phone_number = phoneNumber.trim();
     }
@@ -579,7 +374,7 @@ export const updateUserRole = async (
   try {
     const { error } = await supabase
       .from('profiles')
-      .upsert({ id: userId, role }, { onConflict: 'id' });
+      .upsert({ id: userId, role, plan: targetPlan }, { onConflict: 'id' });
     if (error) return { success: false, error: error.message };
     // Force-refresh the Supabase session for the promoted user
     try {

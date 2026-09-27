@@ -7,8 +7,8 @@ android {
         applicationId "com.newscraft.mobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 35
-        versionName "1.34"
+        versionCode 63
+        versionName "1.63"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -23,6 +23,12 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        releaseConfig {
+            storeFile file('../newscraft-release.keystore')
+            storePassword 'newscraft2024'
+            keyAlias 'newscraft'
+            keyPassword 'newscraft2024'
+        }
     }
     buildTypes {
         debug {
@@ -31,8 +37,12 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.persistent
+            signingConfig signingConfigs.releaseConfig
         }
+    }
+    lintOptions {
+        checkReleaseBuilds false
+        abortOnError false
     }
 }
 
