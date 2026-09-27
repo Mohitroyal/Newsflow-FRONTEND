@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Newspaper, MapPin, RefreshCw } from 'lucide-react';
-import { useAuthStore } from '@/store';
+import { useAuthStore, useUIStore } from '@/store';
 import { supabase } from '@/lib/supabase';
 
 export const FeedScreen: React.FC = () => {
   const district = useAuthStore((state) => state.district) || '';
   const userState = useAuthStore((state) => state.userState) || '';
+  const isFullScreenFeed = useUIStore((state) => state.isFullScreenFeed);
+  const toggleFullScreenFeed = useUIStore((state) => state.toggleFullScreenFeed);
   const [clippings, setClippings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -63,7 +65,8 @@ export const FeedScreen: React.FC = () => {
   }, [district, userState]);
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-black pb-[60px]">
+    <div className={`flex flex-col h-[100dvh] bg-black ${!isFullScreenFeed ? 'pb-[60px]' : ''}`}>
+      {!isFullScreenFeed && (
       <div className="flex-shrink-0 bg-white" style={{ paddingTop: '16px', paddingBottom: '14px' }}>
         <div className="flex items-center justify-between px-4">
           <div className="flex items-center gap-2">
@@ -88,6 +91,7 @@ export const FeedScreen: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
 
       <div className="flex-1 w-full bg-black flex justify-center overflow-hidden">
         {loading ? (
@@ -117,7 +121,7 @@ export const FeedScreen: React.FC = () => {
                 className="w-full h-full snap-start snap-always flex flex-col bg-black border-b border-gray-800 relative"
               >
                 {/* Full Screen Generated Image */}
-                <div className="flex-1 w-full bg-black relative flex items-center justify-center overflow-hidden pb-[56px]">
+                <div className="flex-1 w-full bg-black relative flex items-center justify-center overflow-hidden pb-[56px]" onClick={toggleFullScreenFeed}>
                   {/* Blurred Background to avoid pure black bars */}
                   {clip.png_url && (
                     <div 

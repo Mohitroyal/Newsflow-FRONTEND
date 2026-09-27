@@ -266,6 +266,7 @@ interface UIStore {
   sidebarOpen: boolean;
   language: string;
   showInnerBorders: boolean;
+  isFullScreenFeed: boolean;
   toggleLogoMode: () => void;
   toggleInnerBorders: () => void;
   setLogoMode: (val: boolean) => void;
@@ -273,6 +274,8 @@ interface UIStore {
   setLanguage: (lang: string) => void;
   pendingCropImageSrc: string | null;
   setPendingCropImageSrc: (src: string | null) => void;
+  setIsFullScreenFeed: (val: boolean) => void;
+  toggleFullScreenFeed: () => void;
 }
 
 export const useUIStore = create<UIStore>()(
@@ -280,6 +283,7 @@ export const useUIStore = create<UIStore>()(
     (set) => ({
       logoMode: false,
       showInnerBorders: true,
+      isFullScreenFeed: false,
       sidebarOpen: true,
       language: "en",
       toggleLogoMode: () =>
@@ -291,6 +295,8 @@ export const useUIStore = create<UIStore>()(
       setLanguage: (lang) => set({ language: lang }),
       pendingCropImageSrc: null,
       setPendingCropImageSrc: (src) => set({ pendingCropImageSrc: src }),
+      setIsFullScreenFeed: (val) => set({ isFullScreenFeed: val }),
+      toggleFullScreenFeed: () => set((state) => ({ isFullScreenFeed: !state.isFullScreenFeed })),
     }),
     { name: "newscraft-ui" }
   )

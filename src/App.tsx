@@ -32,6 +32,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 const MainLayout = ({ children }: { children: React.ReactNode }) => {
   // const { t } = useTranslation();
   const { user } = useAuthStore();
+  const isFullScreenFeed = useUIStore((state) => state.isFullScreenFeed);
   const userAvatar = getReporterPhoto(user?.email) || user?.avatarUrl || (user as any)?.user_metadata?.avatar_url || (user as any)?.user_metadata?.picture || (user as any)?.avatar_url;
   const userName = getReporterName(user?.email) || (user as any)?.user_metadata?.full_name || (user as any)?.user_metadata?.name || user?.full_name || user?.firstName || 'Reporter';
   const userInitials = userName.split(' ').filter(Boolean).map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() || 'RP';
@@ -83,7 +84,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
         }}
       >
         {/* ── Masthead (scrolls with page) ── */}
-        <header className="w-full flex flex-col pt-safe" style={{ background: '#EAF2FB' }}>
+        {!isFullScreenFeed && (<header className="w-full flex flex-col pt-safe" style={{ background: '#EAF2FB' }}>
           <div style={{ background: headerBg, paddingBottom: '12px' }}>
             {/* ── Main Header Content ── */}
             <div className="w-full flex items-start justify-between px-3.5 pt-3.5 pb-2 gap-2">
@@ -175,7 +176,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
               </a>
             </div>
           </div>
-        </header>
+        </header>)}
 
         <ErrorBoundary>
           {children}
@@ -183,7 +184,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
       </main>
 
 
-      <nav className="fixed bottom-0 left-0 right-0 w-full pb-safe flex items-center justify-around h-[68px] z-30 shadow-md border-t border-[#E2EDF8]" style={{ background: '#FFFFFF' }}>
+      {!isFullScreenFeed && (<nav className="fixed bottom-0 left-0 right-0 w-full pb-safe flex items-center justify-around h-[68px] z-30 shadow-md border-t border-[#E2EDF8]" style={{ background: '#FFFFFF' }}>
         {/* 1. e-paper Tab */}
         <a
           href="https://www.fouziyapublications.com/"
@@ -249,7 +250,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
             Settings
           </span>
         </Link>
-      </nav>
+      </nav>)}
     </div>
   );
 };
