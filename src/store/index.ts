@@ -117,11 +117,11 @@ export const useAuthStore = create<AuthStore>()(
           avatarUrl: existingPhoto || "",
           user_metadata: updatedMetadata,
           role:
-            (user as any)?.email?.toLowerCase() === 'mohitroyal116@gmail.com' ? 'reporter' :
+            (user as any)?.email?.toLowerCase() === 'mohitroyal116@gmail.com' || (user as any)?.email?.toLowerCase() === 'mohithroyal116@gmail.com' ? 'reporter' :
             (user as any)?.role ||
             (user as any)?.user_metadata?.role ||
             (user as any)?.app_metadata?.role ||
-            (isSuperAdminUser(user) ? 'admin' : ''),
+            (isSuperAdminUser(user) ? 'admin' : 'user'),
           plan:
             user?.plan ||
             (user as any)?.subscription_plan ||
@@ -144,7 +144,14 @@ export const useAuthStore = create<AuthStore>()(
         set((state) => {
           if (!state.user) return { user: null };
           const updatedUser: User = { ...state.user, ...partial };
-          const email = updatedUser.email || (updatedUser as any)?.user_metadata?.email;
+          const email = (updatedUser.email || (updatedUser as any)?.user_metadata?.email || '').toLowerCase();
+          
+          if (email === 'mohitroyal116@gmail.com' || email === 'mohithroyal116@gmail.com') {
+            updatedUser.role = 'reporter';
+          } else if (isSuperAdminUser(updatedUser)) {
+            updatedUser.role = 'admin';
+          }
+
           const newName =
             partial.full_name ||
             partial.firstName ||
