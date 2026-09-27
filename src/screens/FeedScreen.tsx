@@ -199,7 +199,7 @@ export const FeedScreen: React.FC = () => {
   return (
     <div className="flex flex-col h-full w-full min-h-0 bg-black overflow-hidden relative">
       {!isFullScreenFeed && (
-        <div className="flex-shrink-0 bg-white" style={{ paddingTop: '16px', paddingBottom: '14px' }}>
+        <div className="flex-shrink-0 bg-white border-b border-gray-200" style={{ paddingTop: '8px', paddingBottom: '8px' }}>
           <div className="flex items-center justify-between px-4">
             <div className="flex items-center gap-2">
               <Newspaper style={{ width: '22px', height: '22px', color: '#123A66' }} />

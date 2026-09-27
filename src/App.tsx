@@ -77,7 +77,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
 
       {/* Main Content Area — masthead scrolls with content on all devices */}
       <main
-        className={`flex-1 flex flex-col min-h-0 relative ${isFeedPage ? (isFullScreenFeed ? 'overflow-hidden pb-0' : 'overflow-hidden pb-[68px]') : 'overflow-y-auto pb-[92px]'}`}
+        className={`flex-1 flex flex-col min-h-0 relative ${isFeedPage ? 'overflow-hidden bg-black pb-0' : 'overflow-y-auto pb-[92px]'}`}
         style={{
           position: 'relative',
           zIndex: 3,
@@ -186,7 +186,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
       </main>
 
 
-      {!isFullScreenFeed && (<nav className="fixed bottom-0 left-0 right-0 w-full pb-safe flex items-center justify-around h-[68px] z-30 shadow-md border-t border-[#E2EDF8]" style={{ background: '#FFFFFF' }}>
+      {!isFullScreenFeed && (<nav className="shrink-0 w-full pb-safe flex items-center justify-around h-[68px] z-30 shadow-md border-t border-[#E2EDF8]" style={{ background: '#FFFFFF' }}>
         {/* 1. e-paper Tab */}
         <a
           href="https://www.fouziyapublications.com/"
