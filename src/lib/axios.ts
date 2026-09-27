@@ -80,13 +80,16 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    const isAdminRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
 
     // Prevent retry loops
     if (error.response?.status === 401 && originalRequest?._retry) {
-      try { await supabase.auth.signOut({ scope: 'local' }); } catch { /* ignore */ }
-      useAuthStore.getState().logout();
-      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-        window.location.href = '/login';
+      if (!isAdminRoute) {
+        try { await supabase.auth.signOut({ scope: 'local' }); } catch { /* ignore */ }
+        useAuthStore.getState().logout();
+        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+          window.location.href = '/login';
+        }
       }
       return Promise.reject(error);
     }
@@ -100,14 +103,16 @@ api.interceptors.response.use(
         return api(originalRequest);
       }
 
-      // If token recovery fails completely, log the user out
-      try { await supabase.auth.signOut({ scope: 'local' }); } catch { /* ignore */ }
-      useAuthStore.getState().logout();
+      if (!isAdminRoute) {
+        // If token recovery fails completely, log the user out
+        try { await supabase.auth.signOut({ scope: 'local' }); } catch { /* ignore */ }
+        useAuthStore.getState().logout();
 
-      const isPolling = typeof window !== 'undefined' && window.location.pathname.startsWith('/preview');
+        const isPolling = typeof window !== 'undefined' && window.location.pathname.startsWith('/preview');
 
-      if (!isPolling && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-        window.location.href = '/login';
+        if (!isPolling && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+          window.location.href = '/login';
+        }
       }
     }
 
