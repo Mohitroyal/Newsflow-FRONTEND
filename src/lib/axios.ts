@@ -56,13 +56,17 @@ let tokenRefresh: Promise<string | null> | null = null;
 const recoverSessionToken = (): Promise<string | null> => {
   if (!tokenRefresh) {
     tokenRefresh = (async () => {
-      const userId = useAuthStore.getState().user?.id;
-      if (!userId) return null;
       const { data } = await supabase.auth.getSession();
-      if (data.session?.user.id !== userId) return null;
+      if (!data.session) return null;
+
+      const userId = useAuthStore.getState().user?.id;
+      if (userId && data.session.user.id !== userId) return null;
+
       const { data: refreshed, error } = await supabase.auth.refreshSession();
-      if (error || !refreshed.session || refreshed.session.user.id !== userId ||
-          useAuthStore.getState().user?.id !== userId) return null;
+      if (error || !refreshed.session) return null;
+
+      if (userId && refreshed.session.user.id !== userId) return null;
+
       const token = refreshed.session.access_token;
       useAuthStore.setState({ token });
       return token;
@@ -77,11 +81,12 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // Prevent retry loops
     if (error.response?.status === 401 && originalRequest?._retry) {
-      try { await supabase.auth.signOut({ scope: 'local' }); } catch { /* already invalid */ }
+      try { await supabase.auth.signOut({ scope: 'local' }); } catch { /* ignore */ }
       useAuthStore.getState().logout();
-      if (typeof window !== "undefined" && window.location.pathname.startsWith("/admin")) {
-        window.location.href = "/login";
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
       }
       return Promise.reject(error);
     }
@@ -95,28 +100,14 @@ api.interceptors.response.use(
         return api(originalRequest);
       }
 
-      // Supabase reports both expired JWTs and revoked/deleted sessions as
-      // 401. Clear the persisted Zustand state and Supabase session so the
-      // app cannot remain on /admin with a dead token indefinitely.
-      try { await supabase.auth.signOut({ scope: 'local' }); } catch { /* already invalid */ }
+      // If token recovery fails completely, log the user out
+      try { await supabase.auth.signOut({ scope: 'local' }); } catch { /* ignore */ }
       useAuthStore.getState().logout();
 
-      // Do NOT redirect to login if we are on the preview/polling route, or on the admin route.
-      // A token expiry mid-generation would otherwise kick the user to the
-      // login screen while Playwright is still rendering in the background.
-      // Admin requests surface the authentication error in the dashboard.
-      // 401 means an invalid session; missing admin privileges are a 403.
-      const isPollingOrAdmin =
-        typeof window !== "undefined" &&
-        (window.location.pathname.startsWith("/preview") || window.location.pathname.startsWith("/admin"));
+      const isPolling = typeof window !== 'undefined' && window.location.pathname.startsWith('/preview');
 
-      if (!isPollingOrAdmin && typeof window !== "undefined") {
-        console.warn("[API] 401 received — redirecting to login.");
-        window.location.href = "/login";
-      } else if (isPollingOrAdmin && typeof window !== "undefined" && window.location.pathname.startsWith("/admin")) {
-        window.location.href = "/login";
-      } else {
-        console.warn("[API] 401 received during generation polling; local session cleared.");
+      if (!isPolling && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
       }
     }
 
