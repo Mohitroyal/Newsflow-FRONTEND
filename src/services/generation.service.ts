@@ -133,8 +133,8 @@ export const generationService = {
     if (!file || file.size === 0) {
       throw new Error("Empty file uploaded. File must be greater than 0 bytes.");
     }
-    if (file.size > 10 * 1024 * 1024) {
-      throw new Error("File exceeds maximum allowed size of 10MB. 10MB is the limit.");
+    if (file.size > 50 * 1024 * 1024) {
+      throw new Error("File exceeds maximum allowed size of 50MB. 50MB is the limit.");
     }
 
     // Compress before upload to reduce network time
@@ -195,7 +195,7 @@ export const generationService = {
           throw new Error("Authentication required. Please log in to your account and try uploading again.");
         }
         if (res.status === 413) {
-          throw new Error("File exceeds maximum allowed size of 10MB. 10MB is the limit.");
+          throw new Error("File exceeds maximum allowed size of 50MB. 50MB is the limit.");
         }
         throw new Error(errorDetail || `Image Upload Failed: ${res.statusText} (HTTP ${res.status})`);
       }
