@@ -91,11 +91,18 @@ export const FeedScreen: React.FC = () => {
     setCommentText('');
     try {
       const { data } = await supabase
-        .from('clipping_comments')
+        .from('lipping_comments')
         .select('*')
         .eq('clipping_id', clipId)
         .order('created_at', { ascending: true });
-      setComments(data || []);
+      const fetched = data || [];
+      setComments(fetched);
+      // Sync real count into clippings state so the counter is accurate
+      setClippings((prev) =>
+        prev.map((c) =>
+          c.id === clipId ? { ...c, comments_count: fetched.length } : c
+        )
+      );
     } catch {
       setComments([]);
     }

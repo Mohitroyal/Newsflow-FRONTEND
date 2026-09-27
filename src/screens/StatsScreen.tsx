@@ -34,6 +34,7 @@ export const StatsScreen: React.FC = () => {
       if (!user?.id) return;
       setLoading(true);
       try {
+        // Fetch all clippings for this reporter
         const { data, error } = await supabase
           .from('clippings')
           .select('*')
@@ -43,10 +44,32 @@ export const StatsScreen: React.FC = () => {
         if (error) throw error;
 
         const feed = data || [];
-        setClippings(feed);
+
+        // Fetch actual comment counts directly from lipping_comments (source of truth)
+        const clippingIds = feed.map((c: any) => c.id);
+        let commentCountMap: Record<string, number> = {};
+
+        if (clippingIds.length > 0) {
+          const { data: commentRows } = await supabase
+            .from('lipping_comments')
+            .select('clipping_id')
+            .in('clipping_id', clippingIds);
+
+          (commentRows || []).forEach((row: any) => {
+            commentCountMap[row.clipping_id] = (commentCountMap[row.clipping_id] || 0) + 1;
+          });
+        }
+
+        // Merge real comment counts into clippings
+        const enriched = feed.map((c: any) => ({
+          ...c,
+          comments_count: commentCountMap[c.id] ?? c.comments_count ?? 0,
+        }));
+
+        setClippings(enriched);
 
         let views = 0, likes = 0, comments = 0;
-        feed.forEach((c) => {
+        enriched.forEach((c: any) => {
           views += c.views_count || 0;
           likes += c.likes_count || 0;
           comments += c.comments_count || 0;
@@ -63,6 +86,7 @@ export const StatsScreen: React.FC = () => {
     };
 
     fetchStats();
+
   }, [user?.id]);
 
   const openCommentDrawer = async (clipId: string, headline: string) => {
