@@ -21,10 +21,38 @@ const mapUser = (user: any, profile?: any, generations = 0): AdminUserProfile =>
 };
 
 export const getAdminUsers = async (): Promise<AdminUserProfile[]> => {
+  const { data: { session } } = await supabase.auth.getSession();
+  let accessToken = session?.access_token;
+  
   for (const endpoint of ['/api/v1/admin/auth-users', '/api/v1/admin/users']) {
-    try { const { data } = await api.get(endpoint, { timeout: 60_000 }); if (Array.isArray(data) && data.length > 0) return data.map((u: any) => mapUser(u)); }
-    catch (error) { console.warn(`[AdminService] ${endpoint} unavailable; continuing with fallback`, error); }
+    let retry = false;
+    do {
+      try {
+        const headers: any = {};
+        if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+        
+        const { data } = await api.get(endpoint, { timeout: 60_000, headers }); 
+        if (Array.isArray(data) && data.length > 0) return data.map((u: any) => mapUser(u)); 
+        break; // Stop do-while if it succeeds but is empty, try next endpoint
+      } catch (error: any) { 
+        if (error.response?.status === 401 && !retry) {
+          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+          if (!refreshError && refreshData.session?.access_token) {
+            accessToken = refreshData.session.access_token;
+            retry = true;
+            continue;
+          }
+          // If refresh fails, sign out and redirect
+          await supabase.auth.signOut();
+          window.location.href = '/login';
+          throw new Error('Session expired');
+        }
+        console.warn(`[AdminService] ${endpoint} unavailable; continuing with fallback`, error); 
+        break;
+      }
+    } while (retry && !(retry = false)); // Ensure loop ends
   }
+
   const [{ data: users, error: usersError }, { data: profiles }, { data: clippings }] = await Promise.all([
     supabase.from('users').select('id, email, full_name, avatar_url, created_at, preferred_language, phone_number').order('created_at', { ascending: false }),
     supabase.from('profiles').select('id, role, plan, last_sign_in_at, is_banned, banned_until, phone_number'),
