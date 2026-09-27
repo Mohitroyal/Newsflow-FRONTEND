@@ -21,8 +21,26 @@ export const FeedScreen: React.FC = () => {
   const [clippings, setClippings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Track which clippings have already been viewed this session
-  const viewedIds = useRef<Set<string>>(new Set());
+  // Persist viewed IDs across sessions using localStorage
+  const VIEWED_KEY = 'spotnews_viewed_clips';
+  const getPersistedViewed = (): Set<string> => {
+    try {
+      const raw = localStorage.getItem(VIEWED_KEY);
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch { return new Set(); }
+  };
+  const addPersistedViewed = (id: string) => {
+    try {
+      const existing = getPersistedViewed();
+      existing.add(id);
+      // Cap at 500 entries to avoid unlimited growth
+      const arr = Array.from(existing).slice(-500);
+      localStorage.setItem(VIEWED_KEY, JSON.stringify(arr));
+    } catch { /* ignore storage errors */ }
+  };
+
+  // In-memory set seeded from localStorage (fast O(1) lookups)
+  const viewedIds = useRef<Set<string>>(getPersistedViewed());
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Liked clipping IDs by this user (stored in state for toggle)
@@ -154,8 +172,10 @@ export const FeedScreen: React.FC = () => {
         entries.forEach(async (entry) => {
           if (entry.isIntersecting) {
             const id = (entry.target as HTMLElement).dataset.clipId;
-            if (!id || viewedIds.current.has(id)) return;
+            if (!id || viewedIds.current.has(id)) return;  // already seen on this device
+            // Mark as viewed both in memory AND localStorage
             viewedIds.current.add(id);
+            addPersistedViewed(id);
             // Optimistic UI
             setClippings((prev) =>
               prev.map((c) => (c.id === id ? { ...c, views_count: (c.views_count || 0) + 1 } : c))
