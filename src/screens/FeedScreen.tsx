@@ -21,6 +21,10 @@ export const FeedScreen: React.FC = () => {
   const [clippings, setClippings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Track which clippings have already been viewed this session
+  const viewedIds = useRef<Set<string>>(new Set());
+  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
   // Liked clipping IDs by this user (stored in state for toggle)
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
 
@@ -135,6 +139,40 @@ export const FeedScreen: React.FC = () => {
     }
   };
 
+  // ── Auto-view tracking via IntersectionObserver ───────────────────────────
+  useEffect(() => {
+    if (clippings.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(async (entry) => {
+          if (entry.isIntersecting) {
+            const id = (entry.target as HTMLElement).dataset.clipId;
+            if (!id || viewedIds.current.has(id)) return;
+            viewedIds.current.add(id);
+            // Optimistic UI
+            setClippings((prev) =>
+              prev.map((c) => (c.id === id ? { ...c, views_count: (c.views_count || 0) + 1 } : c))
+            );
+            // DB update
+            try {
+              const clip = clippings.find((c) => c.id === id);
+              await supabase
+                .from('clippings')
+                .update({ views_count: (clip?.views_count || 0) + 1 })
+                .eq('id', id);
+            } catch (err) {
+              console.error('View count update failed', err);
+            }
+          }
+        });
+      },
+      { threshold: 0.6 } // card must be 60% visible to count as a view
+    );
+
+    cardRefs.current.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [clippings.length]);
+
   useEffect(() => {
     fetchFeed();
   }, [district, userState]);
@@ -193,6 +231,11 @@ export const FeedScreen: React.FC = () => {
               return (
                 <div
                   key={clip.id}
+                  data-clip-id={clip.id}
+                  ref={(el) => {
+                    if (el) cardRefs.current.set(clip.id, el);
+                    else cardRefs.current.delete(clip.id);
+                  }}
                   className="w-full h-full snap-start snap-always flex flex-col bg-black border-b border-gray-800 relative"
                 >
                   {/* Full Screen Generated Image */}
