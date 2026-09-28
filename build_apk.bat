@@ -67,6 +67,8 @@ if exist "%APK_PATH%" (
   copy /y "%APK_PATH%" "%PROJECT_ROOT%..\Spot-News-24x7.apk" >nul
   copy /y "%APK_PATH%" "%USERPROFILE%\Desktop\Spot-News-24x7.apk" >nul
   copy /y "%APK_PATH%" "%PROJECT_ROOT%..\APK\Spot-News-24x7.apk" >nul
+  echo Copied APK to Desktop and project folders successfully.
+) else (
   echo [ERROR] APK not found after build.
 )
 

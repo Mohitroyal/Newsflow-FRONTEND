@@ -20,6 +20,8 @@ import {
   type AdminStats, type AdminUserProfile, type PublicationLogo, type AdminClippingLog
 } from '@/services/admin.service';
 import mastheadLogo from '../assets/rti_express_logo.png';
+import { DailyNewspaperGeneratorModal } from '@/components/DailyNewspaperGeneratorModal';
+import { dailyNewspaperService, type DailyEditionRecord } from '@/services/daily-newspaper.service';
 
 function fmt(n: number) {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
@@ -238,7 +240,10 @@ export const AdminScreen = () => {
 
   // ── State ─────────────────────────────────────────────────────────────────
   const isSuperAdmin = isSuperAdminUser(user);
-  const [activeTab, setActiveTab] = useState<'overview' | 'clippings' | 'users' | 'logos' | 'applications'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'clippings' | 'users' | 'logos' | 'applications' | 'daily_editions'>('overview');
+  const [isPdfGeneratorOpen, setIsPdfGeneratorOpen] = useState(false);
+  const [dailyEditions, setDailyEditions] = useState<DailyEditionRecord[]>([]);
+  const [dailyEditionsLoading, setDailyEditionsLoading] = useState(false);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<AdminUserProfile[]>([]);
   const [usersError, setUsersError] = useState<string | null>(null);
@@ -353,6 +358,24 @@ export const AdminScreen = () => {
     }
   }, [hasAccess, activeTab, fetchClippings, fromDate, toDate]);
 
+  const fetchDailyEditions = useCallback(async () => {
+    setDailyEditionsLoading(true);
+    try {
+      const editions = await dailyNewspaperService.getDailyEditions();
+      setDailyEditions(editions);
+    } catch {
+      showToast('Failed to load daily newspaper editions', 'error');
+    } finally {
+      setDailyEditionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (hasAccess && activeTab === 'daily_editions' && isSuperAdmin) {
+      fetchDailyEditions();
+    }
+  }, [hasAccess, activeTab, isSuperAdmin, fetchDailyEditions]);
+
   const fetchApplications = useCallback(async () => {
     setApplicationsLoading(true);
     try {
@@ -387,7 +410,11 @@ export const AdminScreen = () => {
       if (status === 'approved') {
         const { error: roleError } = await supabase
           .from('profiles')
-          .update({ role: 'reporter' })
+          .update({
+            role: 'reporter',
+            ...(applications.find(a => a.id === appId)?.state ? { state: applications.find(a => a.id === appId)?.state } : {}),
+            ...(applications.find(a => a.id === appId)?.district ? { district: applications.find(a => a.id === appId)?.district } : {})
+          })
           .eq('email', email);
           
         if (roleError) {
@@ -769,6 +796,16 @@ export const AdminScreen = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            {isSuperAdmin && (
+              <button
+                onClick={() => setIsPdfGeneratorOpen(true)}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 bg-gradient-to-r from-amber-400 to-amber-500 text-black shadow-md active:scale-95 transition-all hover:brightness-105"
+                title="Generate Daily Newspaper PDF"
+              >
+                <Newspaper className="w-4 h-4" />
+                <span>Generate News PDF</span>
+              </button>
+            )}
             <button
               onClick={() => navigate('/')}
               className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-white/15 text-white active:scale-95 transition-transform hover:bg-white/20"
@@ -861,6 +898,18 @@ export const AdminScreen = () => {
 
           {isSuperAdmin && (
             <>
+              <button
+                onClick={() => setActiveTab('daily_editions')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'daily_editions'
+                    ? 'bg-[#015BB3] text-white shadow-sm'
+                    : 'text-[#415A77] hover:bg-white/50'
+                }`}
+              >
+                <FileText className="w-4 h-4 text-amber-300" />
+                <span>Daily Editions</span>
+              </button>
+
               <button
                 onClick={() => setActiveTab('logos')}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
@@ -1616,6 +1665,18 @@ export const AdminScreen = () => {
                           <span className="font-semibold w-24">Press ID:</span>
                           <span className="text-[#0A2540]">{app.press_id}</span>
                         </div>
+                        {app.state && (
+                          <div className="flex items-center gap-2 text-xs text-[#6B7A90]">
+                            <span className="font-semibold w-24">State:</span>
+                            <span className="text-[#0A2540]">{app.state}</span>
+                          </div>
+                        )}
+                        {app.district && (
+                          <div className="flex items-center gap-2 text-xs text-[#6B7A90]">
+                            <span className="font-semibold w-24">District:</span>
+                            <span className="text-[#0A2540]">{app.district}</span>
+                          </div>
+                        )}
                         <div className="flex items-center gap-2 text-xs text-[#6B7A90]">
                           <span className="font-semibold w-24">Submitted:</span>
                           <span className="text-[#0A2540]">{formatDate(app.created_at)}</span>
@@ -2015,7 +2076,16 @@ export const AdminScreen = () => {
         )}
       </AnimatePresence>
 
+      
+      {/* ── Daily Newspaper Generator Modal ── */}
+      <DailyNewspaperGeneratorModal
+        isOpen={isPdfGeneratorOpen}
+        onClose={() => setIsPdfGeneratorOpen(false)}
+        onSuccess={fetchDailyEditions}
+      />
+
       {/* ── Toast ── */}
+
       <AnimatePresence>
         {toast && (
           <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />

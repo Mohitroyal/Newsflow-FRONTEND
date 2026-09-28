@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Newspaper, MapPin, RefreshCw, X, Send } from 'lucide-react';
+import { Newspaper, MapPin, RefreshCw, X, Send, Share2, Copy, Check } from 'lucide-react';
 import { useAuthStore, useUIStore } from '@/store';
 import { supabase } from '@/lib/supabase';
 
@@ -34,6 +34,66 @@ export const FeedScreen: React.FC = () => {
   const [commentText, setCommentText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const commentInputRef = useRef<HTMLInputElement>(null);
+  // Share drawer state
+  const [shareSheetOpen, setShareSheetOpen] = useState<any | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleShareClick = async (clip: any) => {
+    const headline = clip.headline || clip.title || 'News Update';
+    const content = clip.summary || clip.content || '';
+    const shareUrl = clip.png_url || window.location.href;
+    const text = `${headline}\n\n${content}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: headline,
+          text: text,
+          url: shareUrl
+        });
+        return;
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+      }
+    }
+    setShareSheetOpen(clip);
+  };
+
+  const handleShareOption = (option: string, clip: any) => {
+    const headline = clip.headline || clip.title || 'News Update';
+    const content = clip.summary || clip.content || '';
+    const shareUrl = clip.png_url || window.location.href;
+    const text = `${headline}\n\n${content}`;
+
+    let url = '';
+    switch (option) {
+      case 'WhatsApp':
+        url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text + '\n' + shareUrl)}`;
+        window.open(url, '_blank');
+        break;
+      case 'Facebook':
+        url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
+        window.open(url, '_blank');
+        break;
+      case 'Twitter':
+        url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`;
+        window.open(url, '_blank');
+        break;
+      case 'Telegram':
+        url = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(text)}`;
+        window.open(url, '_blank');
+        break;
+      case 'Gmail':
+        url = `mailto:?subject=${encodeURIComponent(headline)}&body=${encodeURIComponent(text + '\n\n' + shareUrl)}`;
+        window.open(url, '_blank');
+        break;
+      case 'Copy':
+        navigator.clipboard.writeText(shareUrl);
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2000);
+        break;
+    }
+  };
 
   const fetchFeed = async () => {
     setLoading(true);
@@ -197,9 +257,9 @@ export const FeedScreen: React.FC = () => {
   }, [district, userState]);
 
   return (
-    <div className="flex flex-col h-full w-full min-h-0 bg-black overflow-hidden relative">
+    <div className={`flex flex-col h-[100dvh] bg-black ${!isFullScreenFeed ? 'pb-[60px]' : ''}`}>
       {!isFullScreenFeed && (
-        <div className="flex-shrink-0 bg-white border-b border-gray-200" style={{ paddingTop: '8px', paddingBottom: '8px' }}>
+        <div className="flex-shrink-0 bg-white" style={{ paddingTop: '16px', paddingBottom: '14px' }}>
           <div className="flex items-center justify-between px-4">
             <div className="flex items-center gap-2">
               <Newspaper style={{ width: '22px', height: '22px', color: '#123A66' }} />
@@ -224,7 +284,7 @@ export const FeedScreen: React.FC = () => {
         </div>
       )}
 
-      <div className="flex-1 w-full min-h-0 bg-black flex justify-center overflow-hidden relative">
+      <div className="flex-1 w-full bg-black flex justify-center overflow-hidden">
         {loading ? (
           <div className="p-12 text-center">
             <div className="w-8 h-8 rounded-full border-2 border-[#145AB1] border-t-transparent animate-spin mx-auto mb-2" />
@@ -241,10 +301,8 @@ export const FeedScreen: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div className="h-full w-full min-h-0 overflow-y-auto snap-y snap-mandatory no-scrollbar relative bg-black">
+          <div className="h-full w-full overflow-y-auto snap-y snap-mandatory no-scrollbar relative bg-black">
             {clippings.map((clip: any) => {
-              const headline = clip.config?.headline || clip.headline || 'Breaking News';
-              const content = clip.config?.articleContent || clip.content || '';
               const isLiked = likedIds.has(clip.id);
 
               return (
@@ -255,16 +313,16 @@ export const FeedScreen: React.FC = () => {
                     if (el) cardRefs.current.set(clip.id, el);
                     else cardRefs.current.delete(clip.id);
                   }}
-                  className="w-full h-full snap-start snap-always relative bg-black overflow-hidden"
+                  className="w-full h-full snap-start snap-always flex flex-col bg-black border-b border-gray-800 relative"
                 >
                   {/* Full Screen Generated Image */}
                   <div
-                    className="w-full h-full absolute inset-0 bg-black overflow-hidden flex items-center justify-center"
+                    className="flex-1 w-full bg-black relative flex items-center justify-center overflow-hidden pb-[56px]"
                     onClick={toggleFullScreenFeed}
                   >
                     {clip.png_url && (
                       <div
-                        className="absolute inset-0 opacity-40 scale-110 blur-xl bg-cover bg-center"
+                        className="absolute inset-0 opacity-30 scale-110 blur-xl bg-cover bg-center"
                         style={{ backgroundImage: `url(${clip.png_url})` }}
                       />
                     )}
@@ -272,10 +330,10 @@ export const FeedScreen: React.FC = () => {
                       <img
                         src={clip.png_url}
                         alt="News clipping"
-                        className="w-full h-full object-cover object-top relative z-10"
+                        className="w-full h-full object-contain relative z-10"
                       />
                     ) : (
-                      <div className="flex flex-col items-center justify-center text-[#6B7A90] relative z-10">
+                      <div className="flex flex-col items-center text-[#6B7A90] relative z-10">
                         <Newspaper className="w-16 h-16 mb-2 opacity-50" />
                         <span className="text-sm font-bold opacity-50">No Image Available</span>
                       </div>
@@ -283,7 +341,7 @@ export const FeedScreen: React.FC = () => {
                   </div>
 
                   {/* Bottom Action Bar */}
-                  <div className="absolute bottom-0 left-0 right-0 h-[56px] bg-white border-t border-gray-200 z-20 flex items-center justify-between px-3">
+                  <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-20 h-[56px] flex items-center justify-between px-3">
 
                     {/* Left: Like toggle + Dislike */}
                     <div className="flex items-center gap-3">
@@ -299,25 +357,22 @@ export const FeedScreen: React.FC = () => {
                       </button>
                     </div>
 
-                    {/* Center: Floating WhatsApp Share Button */}
+                    {/* Center: Universal Share Button */}
                     <div className="absolute left-1/2 -translate-x-1/2 -top-[24px] flex flex-col items-center">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          const shareUrl = clip.png_url || window.location.href;
-                          const text = `${headline}\n\n${content}`;
-                          window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text + '\n' + shareUrl)}`, '_blank');
+                          handleShareClick(clip);
                         }}
-                        className="w-[48px] h-[48px] bg-[#25D366] rounded-full flex items-center justify-center shadow-[0_4px_12px_rgba(37,211,102,0.4)] active:scale-95 transition-transform border-[3px] border-white"
+                        className="w-[48px] h-[48px] bg-gradient-to-tr from-[#015BB3] to-[#0284c7] text-white rounded-full flex items-center justify-center shadow-[0_4px_14px_rgba(1,91,179,0.4)] active:scale-95 transition-transform border-[3px] border-white"
+                        title="Share clipping"
                       >
-                        <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.713-1.455L0 24zm6.59-11.597c-.279-.314-.555-.262-.773-.272-.2-.008-.428-.008-.656-.008-.228 0-.6-.086-.913-.429-.314-.343-1.198-1.172-1.198-2.859 0-1.687 1.226-3.314 1.398-3.543.171-.228 2.413-3.685 5.845-5.17.816-.353 1.453-.564 1.948-.72.822-.262 1.572-.225 2.164-.137.66.099 2.03.83 2.314 1.632.285.803.285 1.49.201 1.632-.083.14-.308.228-.651.4l-2.102 1.03c-.342.166-.591.248-.846.634-.255.38-.973 1.226-1.195 1.48-.222.254-.443.286-.786.114-.343-.171-1.447-.533-2.755-1.7c-1.018-.908-1.704-2.03-1.902-2.372-.199-.343-.021-.528.15-.699.153-.153.343-.4.514-.6.171-.2.228-.343.343-.571.114-.229.057-.429-.028-.6-.086-.171-.773-1.857-1.059-2.543-.278-.669-.561-.578-.773-.589z"/>
-                        </svg>
+                        <Share2 className="w-5 h-5 text-white stroke-[2.5]" />
                       </button>
-                      <span className="text-[9px] font-bold text-gray-400 mt-1 uppercase tracking-wider">Share</span>
+                      <span className="text-[9px] font-bold text-gray-500 mt-1 uppercase tracking-wider">Share</span>
                     </div>
 
-                    {/* Right: Comments & General Share */}
+                    {/* Right: Comments & Share */}
                     <div className="flex items-center gap-4">
                       <button
                         onClick={(e) => { e.stopPropagation(); openComments(clip.id); }}
@@ -332,16 +387,12 @@ export const FeedScreen: React.FC = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          const shareUrl = clip.png_url || window.location.href;
-                          if (navigator.share) {
-                            navigator.share({ title: headline, text: content, url: shareUrl });
-                          }
+                          handleShareClick(clip);
                         }}
                         className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 transition-colors"
+                        title="Share Options"
                       >
-                        <svg className="w-[20px] h-[20px] text-[#015BB3]" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M14 5l7 7m0 0l-7 7m7-7H3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
+                        <Share2 className="w-[18px] h-[18px] text-[#015BB3]" />
                       </button>
                     </div>
                   </div>
@@ -418,6 +469,121 @@ export const FeedScreen: React.FC = () => {
                 <Send className="w-4 h-4 text-white" />
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* ── Share Bottom Sheet ─────────────────────────────────────────── */}
+      {shareSheetOpen && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-xs transition-opacity"
+          onClick={() => setShareSheetOpen(null)}
+        >
+          <div
+            className="bg-white rounded-t-3xl p-5 shadow-2xl border-t-2 border-[#015BB3] max-w-md mx-auto w-full animate-in slide-in-from-bottom duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-4" />
+            
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-base font-bold text-[#0A2540]">Share News Clipping</h3>
+                <p className="text-xs text-gray-500 truncate max-w-[260px]">{shareSheetOpen.headline || shareSheetOpen.title || 'News Update'}</p>
+              </div>
+              <button
+                onClick={() => setShareSheetOpen(null)}
+                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-4 gap-4 py-3">
+              {/* WhatsApp */}
+              <button
+                onClick={() => handleShareOption('WhatsApp', shareSheetOpen)}
+                className="flex flex-col items-center gap-1.5 active:scale-95 transition-transform"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-[#25D366] text-white flex items-center justify-center shadow-md">
+                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.713-1.455L0 24zm6.59-11.597c-.279-.314-.555-.262-.773-.272-.2-.008-.428-.008-.656-.008-.228 0-.6-.086-.913-.429-.314-.343-1.198-1.172-1.198-2.859 0-1.687 1.226-3.314 1.398-3.543.171-.228 2.413-3.685 5.845-5.17.816-.353 1.453-.564 1.948-.72.822-.262 1.572-.225 2.164-.137.66.099 2.03.83 2.314 1.632.285.803.285 1.49.201 1.632-.083.14-.308.228-.651.4l-2.102 1.03c-.342.166-.591.248-.846.634-.255.38-.973 1.226-1.195 1.48-.222.254-.443.286-.786.114-.343-.171-1.447-.533-2.755-1.7c-1.018-.908-1.704-2.03-1.902-2.372-.199-.343-.021-.528.15-.699.153-.153.343-.4.514-.6.171-.2.228-.343.343-.571.114-.229.057-.429-.028-.6-.086-.171-.773-1.857-1.059-2.543-.278-.669-.561-.578-.773-.589z"/>
+                  </svg>
+                </div>
+                <span className="text-[11px] font-semibold text-gray-700">WhatsApp</span>
+              </button>
+
+              {/* Facebook */}
+              <button
+                onClick={() => handleShareOption('Facebook', shareSheetOpen)}
+                className="flex flex-col items-center gap-1.5 active:scale-95 transition-transform"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-[#1877F2] text-white flex items-center justify-center shadow-md">
+                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                  </svg>
+                </div>
+                <span className="text-[11px] font-semibold text-gray-700">Facebook</span>
+              </button>
+
+              {/* X / Twitter */}
+              <button
+                onClick={() => handleShareOption('Twitter', shareSheetOpen)}
+                className="flex flex-col items-center gap-1.5 active:scale-95 transition-transform"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-black text-white flex items-center justify-center shadow-md">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                  </svg>
+                </div>
+                <span className="text-[11px] font-semibold text-gray-700">X (Twitter)</span>
+              </button>
+
+              {/* Telegram */}
+              <button
+                onClick={() => handleShareOption('Telegram', shareSheetOpen)}
+                className="flex flex-col items-center gap-1.5 active:scale-95 transition-transform"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-[#0088cc] text-white flex items-center justify-center shadow-md">
+                  <Send className="w-5 h-5" />
+                </div>
+                <span className="text-[11px] font-semibold text-gray-700">Telegram</span>
+              </button>
+
+              {/* Copy Link */}
+              <button
+                onClick={() => handleShareOption('Copy', shareSheetOpen)}
+                className="flex flex-col items-center gap-1.5 active:scale-95 transition-transform"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-gray-100 text-gray-700 flex items-center justify-center shadow-md">
+                  {copiedLink ? <Check className="w-5 h-5 text-emerald-600" /> : <Copy className="w-5 h-5" />}
+                </div>
+                <span className="text-[11px] font-semibold text-gray-700">{copiedLink ? 'Copied!' : 'Copy Link'}</span>
+              </button>
+
+              {/* System Share */}
+              {Boolean(navigator.share) && (
+                <button
+                  onClick={() => {
+                    const headline = shareSheetOpen.headline || shareSheetOpen.title || 'News Update';
+                    const content = shareSheetOpen.summary || shareSheetOpen.content || '';
+                    const shareUrl = shareSheetOpen.png_url || window.location.href;
+                    navigator.share({ title: headline, text: `${headline}\n\n${content}`, url: shareUrl }).catch(() => {});
+                  }}
+                  className="flex flex-col items-center gap-1.5 active:scale-95 transition-transform"
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-[#E8F2FC] text-[#015BB3] flex items-center justify-center shadow-md">
+                    <Share2 className="w-5 h-5" />
+                  </div>
+                  <span className="text-[11px] font-semibold text-gray-700">More Apps</span>
+                </button>
+              )}
+            </div>
+
+            <button
+              onClick={() => setShareSheetOpen(null)}
+              className="w-full py-3 mt-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs uppercase tracking-wider transition-colors"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
