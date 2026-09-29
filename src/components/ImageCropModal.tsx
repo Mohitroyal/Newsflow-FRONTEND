@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
+import ReactCrop from 'react-image-crop';
 import type { Crop, PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { X } from 'lucide-react';
@@ -10,22 +10,6 @@ interface ImageCropModalProps {
   onCancel: () => void;
 }
 
-function centerAspectCrop(mediaWidth: number, mediaHeight: number, aspect: number) {
-  return centerCrop(
-    makeAspectCrop(
-      {
-        unit: '%',
-        width: 90,
-      },
-      aspect,
-      mediaWidth,
-      mediaHeight,
-    ),
-    mediaWidth,
-    mediaHeight,
-  )
-}
-
 export const ImageCropModal: React.FC<ImageCropModalProps> = ({ imageSrc, onCropComplete, onCancel }) => {
   const [crop, setCrop] = useState<Crop>();
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
@@ -33,22 +17,71 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({ imageSrc, onCrop
   const [isCropping, setIsCropping] = useState(false);
 
   function onImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
-    const { width, height } = e.currentTarget;
-    setCrop(centerAspectCrop(width, height, 16 / 9));
+    setCrop({ unit: '%', x: 0, y: 0, width: 100, height: 100 });
+    const { naturalWidth, naturalHeight } = e.currentTarget;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const width = rect.width || e.currentTarget.width || naturalWidth;
+    const height = rect.height || e.currentTarget.height || naturalHeight;
+    setCompletedCrop({
+      unit: 'px',
+      x: 0,
+      y: 0,
+      width,
+      height
+    });
   }
 
   const handleConfirm = async () => {
-    if (!completedCrop || !imgRef.current) return;
+    if (!imgRef.current) return;
     
     setIsCropping(true);
     try {
       const image = imgRef.current;
       const canvas = document.createElement('canvas');
-      const scaleX = image.naturalWidth / image.width || 1;
-      const scaleY = image.naturalHeight / image.height || 1;
       
-      const cropWidth = Math.round(completedCrop.width * scaleX);
-      const cropHeight = Math.round(completedCrop.height * scaleY);
+      let cropX = 0;
+      let cropY = 0;
+      let cropWidth = image.naturalWidth;
+      let cropHeight = image.naturalHeight;
+
+      if (completedCrop && completedCrop.width > 0 && completedCrop.height > 0) {
+        if (completedCrop.unit === '%') {
+          cropX = Math.round((completedCrop.x / 100) * image.naturalWidth);
+          cropY = Math.round((completedCrop.y / 100) * image.naturalHeight);
+          cropWidth = Math.round((completedCrop.width / 100) * image.naturalWidth);
+          cropHeight = Math.round((completedCrop.height / 100) * image.naturalHeight);
+        } else {
+          const rect = image.getBoundingClientRect();
+          const dispW = rect.width || image.width || image.naturalWidth;
+          const dispH = rect.height || image.height || image.naturalHeight;
+          const scaleX = image.naturalWidth / dispW;
+          const scaleY = image.naturalHeight / dispH;
+
+          cropX = Math.round(completedCrop.x * scaleX);
+          cropY = Math.round(completedCrop.y * scaleY);
+          cropWidth = Math.round(completedCrop.width * scaleX);
+          cropHeight = Math.round(completedCrop.height * scaleY);
+        }
+      }
+
+      // Safeguard: If crop covers >= 90% of natural width OR height (or x <= 5% and width >= 90%), 
+      // treat as uncropped full image to prevent accidental side clipping
+      if (
+        (cropWidth >= image.naturalWidth * 0.90 && cropHeight >= image.naturalHeight * 0.90) ||
+        (cropX <= image.naturalWidth * 0.05 && cropWidth >= image.naturalWidth * 0.90) ||
+        (!crop || crop.width === 100)
+      ) {
+        cropX = 0;
+        cropY = 0;
+        cropWidth = image.naturalWidth;
+        cropHeight = image.naturalHeight;
+      }
+
+      // Bound checks
+      cropX = Math.max(0, Math.min(cropX, image.naturalWidth - 1));
+      cropY = Math.max(0, Math.min(cropY, image.naturalHeight - 1));
+      cropWidth = Math.min(cropWidth, image.naturalWidth - cropX);
+      cropHeight = Math.min(cropHeight, image.naturalHeight - cropY);
 
       canvas.width = cropWidth;
       canvas.height = cropHeight;
@@ -61,14 +94,14 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({ imageSrc, onCrop
 
       ctx.drawImage(
         image,
-        completedCrop.x * scaleX,
-        completedCrop.y * scaleY,
+        cropX,
+        cropY,
         cropWidth,
         cropHeight,
         0,
         0,
         cropWidth,
-        cropHeight,
+        cropHeight
       );
       
       canvas.toBlob((blob) => {
@@ -81,6 +114,7 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({ imageSrc, onCrop
     } catch (e) {
       console.error(e);
       alert('Failed to crop image');
+      setIsCropping(false);
     }
   };
 
@@ -110,40 +144,58 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({ imageSrc, onCrop
         </div>
 
         {/* Cropper Body */}
-        <div style={{ padding: '0 20px', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '300px' }}>
+        <div style={{ padding: '0 20px', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '300px', overflow: 'auto' }}>
           <ReactCrop
             crop={crop}
             onChange={(_, percentCrop) => setCrop(percentCrop)}
             onComplete={(c) => setCompletedCrop(c)}
-            style={{ width: '100%', maxHeight: '60vh' }}
+            style={{ maxWidth: '100%', maxHeight: '60vh' }}
           >
             <img 
               ref={imgRef} 
               alt="Crop me" 
               src={imageSrc} 
               onLoad={onImageLoad} 
-              style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain' }} 
+              style={{ display: 'block', maxWidth: '100%', maxHeight: '60vh', width: 'auto', height: 'auto' }} 
             />
           </ReactCrop>
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '20px' }}>
+        <div style={{ padding: '20px', display: 'flex', gap: '12px' }}>
+          <button
+            onClick={onCancel}
+            disabled={isCropping}
+            style={{ 
+              flex: 1, 
+              background: 'transparent', 
+              color: '#94A3B8', 
+              border: '1px solid #334155', 
+              padding: '14px 16px', 
+              borderRadius: '12px', 
+              fontWeight: 'bold',
+              fontSize: '15px',
+              cursor: 'pointer'
+            }}
+          >
+            Cancel
+          </button>
           <button
             onClick={handleConfirm}
             disabled={isCropping}
             style={{ 
-              width: '100%', 
+              flex: 1, 
               background: '#CC1E1E', 
               color: '#fff', 
               border: 'none', 
-              padding: '16px 20px', 
+              padding: '14px 16px', 
               borderRadius: '12px', 
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'center', 
               fontWeight: 'bold',
-              fontSize: '18px',
+              fontSize: '15px',
+              cursor: 'pointer',
               opacity: isCropping ? 0.7 : 1
             }}
           >
