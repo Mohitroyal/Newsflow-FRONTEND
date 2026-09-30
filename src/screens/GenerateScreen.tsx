@@ -4,14 +4,15 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, Image as ImageIcon, X, ArrowLeft, Newspaper, CheckCircle2, Notebook, FileText, Pencil, SlidersHorizontal, UploadCloud } from 'lucide-react';
 import { generationService, compressImage } from '@/services/generation.service';
 import { validateImageFile } from '@/utils/imageValidation';
-import { compressImageToFit } from '@/utils/imageCompressor';
+import { compressImageToFit, convertToBlackAndWhite } from '@/utils/imageCompressor';
 import { TEMPLATES_LIST } from '@/lib/constants';
 import { getActivePublicationLogos, type PublicationLogo } from '@/services/admin.service';
-import { ImageCropModal } from '@/components/ImageCropModal';
+
 import { ImageWarningModal } from '@/components/ImageWarningModal';
 import type { Language } from '@/types';
 import { LiveNewspaperPreview } from '@/components/LiveNewspaperPreview';
 import { PatternSelectionModal } from '@/components/PatternSelectionModal';
+import { ImageCropModal } from '@/components/ImageCropModal';
 import { BORDER_COLOURS, HEADING_BG_COLOURS } from '@/constants/colours';
 import { useTranslation } from '@/lib/i18n';
 
@@ -101,9 +102,13 @@ export const GenerateScreen = () => {
 
   const [loading, setLoading] = useState(false);
   const [stageIndex, setStageIndex] = useState(-1);
-  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [isBlackAndWhite, setIsBlackAndWhite] = useState(false);
+
   const [cropImageMime, setCropImageMime] = useState<string | null>(null);
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const rawFileRef = useRef<File | null>(null); // stores original file for full-image bypass
 
   // Warning Popup Modal state
   const [warningModalOpen, setWarningModalOpen] = useState(false);
@@ -130,8 +135,15 @@ export const GenerateScreen = () => {
   useEffect(() => {
     if (pendingCropImageSrc) {
       setCropImageMime('image/jpeg'); // Default since format isn't stored in pending
-      setCropImageSrc(pendingCropImageSrc);
       setPendingCropImageSrc(null);
+      // Bypass crop modal for restored image
+      fetch(pendingCropImageSrc)
+        .then(res => res.blob())
+        .then(blob => {
+          const file = new File([blob], 'restored_image.jpg', { type: 'image/jpeg' });
+          handleCropComplete(file, true);
+        })
+        .catch(err => console.error('Failed to restore image:', err));
     }
   }, [pendingCropImageSrc, setPendingCropImageSrc]);
 
@@ -263,9 +275,12 @@ export const GenerateScreen = () => {
     }
 
     const mimeType = file.type || 'image/jpeg';
-    const url = URL.createObjectURL(file);
     setCropImageMime(mimeType);
-    setCropImageSrc(url);
+    rawFileRef.current = file; // store raw file for full-image bypass
+    
+    const objUrl = URL.createObjectURL(file);
+    setCropImageSrc(objUrl);
+    setShowCropModal(true);
 
     // Reset input value so same file can be selected again
     e.target.value = '';
@@ -280,7 +295,14 @@ export const GenerateScreen = () => {
       setPendingFileForCompression(null);
       setCanCompressWarning(false);
       setCropImageMime('image/jpeg');
-      setCropImageSrc(result.dataUrl);
+      
+      // Bypass crop modal and use compressed image directly
+      let finalFile = result.file;
+      if (isBlackAndWhite) {
+        finalFile = await convertToBlackAndWhite(finalFile);
+      }
+      rawFileRef.current = finalFile;
+      await handleCropComplete(finalFile, true);
     } catch (err: any) {
       console.error('Image compression failed:', err);
       showImageWarning(
@@ -294,8 +316,8 @@ export const GenerateScreen = () => {
     }
   };
 
-  const handleCropComplete = async (croppedBlob: Blob) => {
-    setCropImageSrc(null);
+  const handleCropComplete = async (croppedBlob: Blob, isFullImage?: boolean) => {
+
     setLoading(true);
     try {
       if (croppedBlob.size === 0) {
@@ -307,11 +329,22 @@ export const GenerateScreen = () => {
         return;
       }
 
-      const mimeType = cropImageMime || 'image/jpeg';
-      const extension = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpeg';
-      const rawFile = new File([croppedBlob], `upload.${extension}`, { type: mimeType });
-      const compressed = await compressImage(rawFile, 1600, 0.82);
-      const uploadRes = await generationService.uploadImage(compressed);
+      let fileToUpload: File;
+
+      if (isFullImage && rawFileRef.current) {
+        // FULL IMAGE PATH: use the original raw file directly — no canvas, no compression, no pixel loss
+        fileToUpload = rawFileRef.current;
+        rawFileRef.current = null;
+      } else {
+        // CROP PATH: use the canvas-drawn blob
+        const mimeType = cropImageMime || 'image/jpeg';
+        const extension = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpeg';
+        const rawFile = new File([croppedBlob], `upload.${extension}`, { type: mimeType });
+        fileToUpload = await compressImage(rawFile, 3600, 0.95);
+        rawFileRef.current = null;
+      }
+
+      const uploadRes = await generationService.uploadImage(fileToUpload);
 
       if (uploadRes.success && uploadRes.data?.url) {
         let finalUrl = uploadRes.data.url;
@@ -412,13 +445,7 @@ export const GenerateScreen = () => {
   return (
     <div style={{ background: '#EAF2FB', minHeight: '100%', paddingBottom: '8px' }}>
 
-      {cropImageSrc && (
-        <ImageCropModal
-          imageSrc={cropImageSrc}
-          onCropComplete={handleCropComplete}
-          onCancel={() => setCropImageSrc(null)}
-        />
-      )}
+
 
 
       {/* ── Page title ── */}
@@ -526,9 +553,19 @@ export const GenerateScreen = () => {
           )}
 
           {imageUrls.length < maxImages && (
-            <button
-              onClick={handleImageUpload}
-              disabled={loading}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', alignSelf: 'flex-start', padding: '0 4px' }}>
+                <input
+                  type="checkbox"
+                  checked={isBlackAndWhite}
+                  onChange={(e) => setIsBlackAndWhite(e.target.checked)}
+                  style={{ width: '16px', height: '16px', accentColor: '#1254A8', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '12.5px', color: '#0F172A', fontWeight: 600 }}>Convert to Black & White</span>
+              </label>
+              <button
+                onClick={handleImageUpload}
+                disabled={loading}
               style={{
                 width: '100%', border: '1.5px dashed #CBD9E8', borderRadius: '10px',
                 background: '#ffffff', padding: '12px 12px', cursor: 'pointer',
@@ -540,7 +577,8 @@ export const GenerateScreen = () => {
               <span style={{ color: '#94A3B8', fontSize: '10.5px' }}>
                 {maxImages - imageUrls.length} remaining · Max 10MB (JPEG, PNG, WebP)
               </span>
-            </button>
+              </button>
+            </div>
           )}
         </div>
 
@@ -884,6 +922,34 @@ export const GenerateScreen = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {showCropModal && cropImageSrc && (
+        <ImageCropModal
+          imageSrc={cropImageSrc}
+          originalFile={rawFileRef.current}
+          onCropComplete={async (croppedBlob, isFullImage) => {
+            setShowCropModal(false);
+            URL.revokeObjectURL(cropImageSrc);
+            setCropImageSrc(null);
+            
+            let finalBlob = croppedBlob;
+            if (isBlackAndWhite) {
+              const mime = cropImageMime || 'image/jpeg';
+              const file = new File([croppedBlob], 'temp.jpg', { type: mime });
+              finalBlob = await convertToBlackAndWhite(file);
+              if (isFullImage) {
+                  rawFileRef.current = finalBlob as File;
+              }
+            }
+            handleCropComplete(finalBlob, isFullImage);
+          }}
+          onCancel={() => {
+            setShowCropModal(false);
+            URL.revokeObjectURL(cropImageSrc);
+            setCropImageSrc(null);
+          }}
+        />
       )}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
