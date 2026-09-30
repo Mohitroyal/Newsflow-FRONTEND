@@ -1,16 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import {
-  FileText, Calendar, Check, X, AlertTriangle, ArrowUp, ArrowDown,
-  Crown, Sparkles, Download, Eye, RefreshCw, ChevronLeft, ChevronRight,
-  LayerGroup, Image as ImageIcon, Edit3, ShieldAlert, CheckCircle2,
-  Sliders, Layout, Newspaper
+  Calendar, Check, X, AlertTriangle, ArrowUp, ArrowDown,
+  Download, Image as ImageIcon, CheckCircle2, Layout, Newspaper
 } from 'lucide-react';
 import {
   dailyNewspaperService,
   type EligibleArticle,
-  type DailyNewspaperConfig,
-  type DailyEditionRecord
+  type DailyNewspaperConfig
 } from '@/services/daily-newspaper.service';
 import { getPublicationLogos, type PublicationLogo } from '@/services/admin.service';
 
@@ -40,11 +37,6 @@ export const DailyNewspaperGeneratorModal: React.FC<Props> = ({ isOpen, onClose,
   const [selectedArticleIds, setSelectedArticleIds] = useState<Set<string>>(new Set());
   const [orderedArticles, setOrderedArticles] = useState<EligibleArticle[]>([]);
   const [leadStoryId, setLeadStoryId] = useState<string | null>(null);
-
-  // Text Excerpt Overrides & Overflows
-  const [editingExcerptArticleId, setEditingExcerptArticleId] = useState<string | null>(null);
-  const [excerptText, setExcerptText] = useState<string>('');
-  const [overflowWarnings, setOverflowWarnings] = useState<Record<string, string>>({});
 
   // Preview & Generation
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -276,22 +268,22 @@ export const DailyNewspaperGeneratorModal: React.FC<Props> = ({ isOpen, onClose,
         </div>
 
         {/* Wizard Steps Indicator */}
-        <div className="px-6 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center justify-between text-xs font-bold shrink-0">
+        <div className="px-6 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center gap-4 overflow-x-auto no-scrollbar text-xs font-bold shrink-0 whitespace-nowrap">
           <div className={`flex items-center gap-2 ${step >= 1 ? 'text-[#0A2540]' : 'text-slate-400'}`}>
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ${step >= 1 ? 'bg-[#0A2540] text-white' : 'bg-slate-300 text-slate-600'}`}>1</span>
             <span>Date & Branding</span>
           </div>
-          <div className="h-0.5 w-12 bg-slate-300" />
+          <div className="h-0.5 w-8 shrink-0 bg-slate-300" />
           <div className={`flex items-center gap-2 ${step >= 2 ? 'text-[#0A2540]' : 'text-slate-400'}`}>
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ${step >= 2 ? 'bg-[#0A2540] text-white' : 'bg-slate-300 text-slate-600'}`}>2</span>
             <span>Articles & Grid Order ({totalArticlesCount})</span>
           </div>
-          <div className="h-0.5 w-12 bg-slate-300" />
+          <div className="h-0.5 w-8 shrink-0 bg-slate-300" />
           <div className={`flex items-center gap-2 ${step >= 3 ? 'text-[#0A2540]' : 'text-slate-400'}`}>
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ${step >= 3 ? 'bg-[#0A2540] text-white' : 'bg-slate-300 text-slate-600'}`}>3</span>
             <span>Live A3 Preview & Fit</span>
           </div>
-          <div className="h-0.5 w-12 bg-slate-300" />
+          <div className="h-0.5 w-8 shrink-0 bg-slate-300" />
           <div className={`flex items-center gap-2 ${step >= 4 ? 'text-emerald-700' : 'text-slate-400'}`}>
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ${step >= 4 ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-600'}`}>4</span>
             <span>Final PDF</span>
@@ -370,7 +362,6 @@ export const DailyNewspaperGeneratorModal: React.FC<Props> = ({ isOpen, onClose,
                             alt={logo.name}
                             className="max-h-14 max-w-full object-contain"
                             onError={(e) => {
-                              // Catch image load failure
                               (e.target as HTMLImageElement).src = logo.logo_url;
                             }}
                           />
@@ -420,9 +411,9 @@ export const DailyNewspaperGeneratorModal: React.FC<Props> = ({ isOpen, onClose,
           {step === 2 && (
             <div className="space-y-6">
               {/* Page count summary pill */}
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-between">
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col md:flex-row md:items-center gap-4 justify-between">
                 <div className="flex items-center gap-3">
-                  <Layout className="w-5 h-5 text-amber-700" />
+                  <Layout className="w-5 h-5 text-amber-700 shrink-0" />
                   <div>
                     <h4 className="text-sm font-black text-amber-900">
                       Total Selected Articles: {totalArticlesCount} &nbsp;→&nbsp; {computedPageCount} Page(s) Output
@@ -433,7 +424,7 @@ export const DailyNewspaperGeneratorModal: React.FC<Props> = ({ isOpen, onClose,
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={() => setStep(1)}
                     className="px-3 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-xl"
@@ -443,7 +434,7 @@ export const DailyNewspaperGeneratorModal: React.FC<Props> = ({ isOpen, onClose,
                   <button
                     onClick={handleFetchPreview}
                     disabled={totalArticlesCount === 0 || previewLoading}
-                    className="px-5 py-2 bg-[#0A2540] text-white rounded-xl text-xs font-bold hover:bg-[#0A2540]/90 disabled:opacity-40 transition-all flex items-center gap-2"
+                    className="px-5 py-2 bg-[#0A2540] text-white rounded-xl text-xs font-bold hover:bg-[#0A2540]/90 disabled:opacity-40 transition-all flex items-center gap-2 whitespace-nowrap"
                   >
                     {previewLoading ? 'Building A3 Preview...' : 'View Live A3 Preview →'}
                   </button>
@@ -452,10 +443,12 @@ export const DailyNewspaperGeneratorModal: React.FC<Props> = ({ isOpen, onClose,
 
               {/* Articles Grid / Table */}
               <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
-                <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 flex items-center justify-between text-xs font-extrabold text-slate-700 uppercase">
-                  <span>Articles List & Grid Order ({orderedArticles.length})</span>
-                  <span>Lead Story & Controls</span>
-                </div>
+                <div className="overflow-x-auto min-w-full">
+                  <div className="min-w-[600px]">
+                    <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 flex items-center justify-between text-xs font-extrabold text-slate-700 uppercase">
+                      <span>Articles List & Grid Order ({orderedArticles.length})</span>
+                      <span>Lead Story & Controls</span>
+                    </div>
 
                 <div className="divide-y divide-slate-100 max-h-[50vh] overflow-y-auto">
                   {orderedArticles.map((art, idx) => {
@@ -544,6 +537,8 @@ export const DailyNewspaperGeneratorModal: React.FC<Props> = ({ isOpen, onClose,
                     );
                   })}
                 </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -551,33 +546,33 @@ export const DailyNewspaperGeneratorModal: React.FC<Props> = ({ isOpen, onClose,
           {/* STEP 3: Live A3 HTML Preview & Fit Warnings */}
           {step === 3 && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between bg-slate-100 p-3 rounded-2xl border border-slate-200">
+              <div className="flex flex-col md:flex-row md:items-center justify-between bg-slate-100 p-3 rounded-2xl border border-slate-200 gap-4">
                 <div className="flex items-center gap-3">
                   <span className="text-xs font-bold text-slate-700">
                     Showing A3 Preview — Page {previewCurrentPage} of {previewTotalPages}
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={() => setPreviewCurrentPage((p) => Math.max(1, p - 1))}
                     disabled={previewCurrentPage <= 1}
                     className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-700 disabled:opacity-40"
                   >
-                    ← Prev Page
+                    ← Prev
                   </button>
                   <button
                     onClick={() => setPreviewCurrentPage((p) => Math.min(previewTotalPages, p + 1))}
                     disabled={previewCurrentPage >= previewTotalPages}
                     className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-700 disabled:opacity-40"
                   >
-                    Next Page →
+                    Next →
                   </button>
                   <button
                     onClick={() => setStep(2)}
                     className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-slate-200 rounded-lg"
                   >
-                    Edit Articles
+                    Edit
                   </button>
                   <button
                     onClick={handleGeneratePDF}

@@ -6,7 +6,7 @@ import {
   Plus, Trash2, Eye, EyeOff, RefreshCw, X, Check,
   AlertTriangle, TrendingUp, Newspaper, Activity, Crown,
   ChevronDown, ChevronUp, Search, ArrowLeft, Ban,
-  Calendar, FileText, ExternalLink,
+  Calendar, FileText, ExternalLink, Download,
   UploadCloud, Edit2, CheckCircle2
 } from 'lucide-react';
 import { useAuthStore, isAdminUser, isSuperAdminUser } from '@/store';
@@ -1888,6 +1888,109 @@ export const AdminScreen = () => {
             </div>
           </div>
         )}
+      
+        {/* ═════════════════════════════════════════════════════════════════════ */}
+        {/* TAB: DAILY NEWSPAPER EDITIONS                                         */}
+        {/* ═════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'daily_editions' && isSuperAdmin && (
+          <div className="space-y-4">
+            <div className="bg-gradient-to-r from-[#0A2540] to-[#0F3459] text-white p-5 rounded-2xl shadow-md flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-black flex items-center gap-2">
+                  <Newspaper className="w-5 h-5 text-amber-400" />
+                  Daily Newspaper Editions
+                </h3>
+                <p className="text-xs text-slate-300 mt-1">
+                  Generated A3 BroadSheet Daily Newspaper PDF History & Snapshots
+                </p>
+              </div>
+              <button
+                onClick={() => setIsPdfGeneratorOpen(true)}
+                className="px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-black text-xs font-black rounded-xl shadow-md transition-all flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Generate New Edition
+              </button>
+            </div>
+
+            {dailyEditionsLoading ? (
+              <div className="p-8 text-center text-xs font-bold text-slate-500">
+                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-[#0A2540]" />
+                Loading daily editions history...
+              </div>
+            ) : dailyEditions.length === 0 ? (
+              <div className="p-12 text-center border-2 border-dashed border-slate-300 rounded-2xl bg-white space-y-3">
+                <Newspaper className="w-10 h-10 text-slate-400 mx-auto" />
+                <h4 className="text-sm font-bold text-slate-700">No Daily Editions Generated Yet</h4>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Click "Generate New Edition" to select published reporter clippings, configure logo branding, and create pixel-perfect A3 broadsheet PDFs.
+                </p>
+                <button
+                  onClick={() => setIsPdfGeneratorOpen(true)}
+                  className="px-4 py-2 bg-[#0A2540] text-white text-xs font-bold rounded-xl shadow-sm"
+                >
+                  Generate First Daily Edition
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {dailyEditions.map((ed) => (
+                  <div
+                    key={ed.id}
+                    className="bg-white border border-[#D0E2F7] rounded-2xl p-4 shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+                        <div className="flex items-center gap-2">
+                          <img
+                            src={ed.logo_url}
+                            alt=""
+                            className="h-7 max-w-[100px] object-contain"
+                            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                          />
+                          <span className="text-xs font-black text-[#0A2540]">{ed.publication_name}</span>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          v{ed.version} • {ed.status}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs mb-3">
+                        <div className="bg-slate-50 p-2 rounded-xl">
+                          <span className="text-[10px] text-slate-500 font-bold block">EDITION DATE</span>
+                          <span className="font-extrabold text-[#0A2540]">{ed.edition_date}</span>
+                        </div>
+                        <div className="bg-slate-50 p-2 rounded-xl">
+                          <span className="text-[10px] text-slate-500 font-bold block">PAGES & ARTICLES</span>
+                          <span className="font-extrabold text-[#0A2540]">
+                            {ed.page_count} Pages ({ed.article_count} Articles)
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                      <span className="text-[11px] text-slate-400">
+                        {ed.created_at ? new Date(ed.created_at).toLocaleDateString() : ''}
+                      </span>
+                      {ed.pdf_url && (
+                        <a
+                          href={ed.pdf_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-4 py-2 bg-[#0A2540] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm hover:bg-[#0A2540]/90"
+                        >
+                          <Download className="w-3.5 h-3.5" /> Download A3 PDF
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
       </main>
 
       {/* ═════════════════════════════════════════════════════════════════════ */}

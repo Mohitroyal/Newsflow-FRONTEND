@@ -59,6 +59,28 @@ export interface DailyNewspaperConfig {
   overwrite_existing?: boolean;
 }
 
+import axios from 'axios';
+
+const djangoApi = axios.create({
+  baseURL: import.meta.env.VITE_DJANGO_API_URL || 'http://127.0.0.1:8000',
+  headers: { "Content-Type": "application/json" }
+});
+
+djangoApi.interceptors.request.use((config) => {
+  if (typeof window !== "undefined") {
+    const raw = localStorage.getItem("newscraft-auth");
+    if (raw) {
+      try {
+        const { state } = JSON.parse(raw);
+        if (state?.token) {
+          config.headers.Authorization = `Bearer ${state.token}`;
+        }
+      } catch {}
+    }
+  }
+  return config;
+});
+
 export const dailyNewspaperService = {
   /**
    * Fetch eligible published clippings for a specific edition date (Asia/Kolkata timezone).
@@ -67,7 +89,7 @@ export const dailyNewspaperService = {
   async getEligibleClippings(dateStr: string): Promise<{ total: number; articles: EligibleArticle[] }> {
     // 1. Try Backend API first
     try {
-      const res = await api.get('/api/v1/admin/daily-newspaper/clippings', {
+      const res = await djangoApi.get('/api/v1/admin/daily-newspaper/clippings', {
         params: { date: dateStr },
       });
       if (res.data && Array.isArray(res.data.articles)) {
@@ -151,7 +173,7 @@ export const dailyNewspaperService = {
    * Request backend HTML render for live preview.
    */
   async preview(config: DailyNewspaperConfig): Promise<{ html: string; total_pages: number; total_articles: number }> {
-    const res = await api.post('/api/v1/admin/daily-newspaper/preview', config);
+    const res = await djangoApi.post('/api/v1/admin/daily-newspaper/preview', config);
     return res.data;
   },
 
@@ -166,7 +188,7 @@ export const dailyNewspaperService = {
     total_articles: number;
     message: string;
   }> {
-    const res = await api.post('/api/v1/admin/daily-newspaper/generate', config, {
+    const res = await djangoApi.post('/api/v1/admin/daily-newspaper/generate', config, {
       timeout: 120_000, // 2 minutes window for Playwright PDF rendering
     });
     return res.data;
@@ -177,7 +199,7 @@ export const dailyNewspaperService = {
    */
   async getDailyEditions(): Promise<DailyEditionRecord[]> {
     try {
-      const res = await api.get('/api/v1/admin/daily-newspaper/editions');
+      const res = await djangoApi.get('/api/v1/admin/daily-newspaper/editions');
       if (Array.isArray(res.data)) {
         return res.data;
       }
