@@ -130,3 +130,50 @@ export async function compressImageToFit(
     img.src = objectUrl;
   });
 }
+
+/**
+ * Converts an image file/blob to grayscale / black & white.
+ */
+export async function convertToBlackAndWhite(file: File | Blob): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || img.width;
+      canvas.height = img.naturalHeight || img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Canvas context unavailable'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0);
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const avg = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        data[i] = avg;
+        data[i + 1] = avg;
+        data[i + 2] = avg;
+      }
+      ctx.putImageData(imgData, 0, 0);
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error('Failed to generate B&W blob'));
+          return;
+        }
+        const fileName = 'name' in file ? (file as File).name : 'bw_image.jpg';
+        resolve(new File([blob], fileName, { type: 'image/jpeg', lastModified: Date.now() }));
+      }, 'image/jpeg', 0.9);
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Failed to load image for black and white conversion'));
+    };
+
+    img.src = objectUrl;
+  });
+}
