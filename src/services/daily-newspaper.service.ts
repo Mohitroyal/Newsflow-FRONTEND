@@ -289,7 +289,7 @@ export const dailyNewspaperService = {
 
       let { data: clippings } = await supabase
         .from('clippings')
-        .select('id, user_id, headline, subheadline, kicker, content, summary, image_url, image_urls, highlight_list, created_at, reporter_name, district, location, state, status')
+        .select('id, user_id, headline, subheadline, kicker, content, image_url, image_urls, highlight_list, created_at, reporter_name, district, location, state, status')
         .gte('created_at', startUTC)
         .lte('created_at', endUTC)
         .not('status', 'eq', 'draft')
@@ -303,7 +303,7 @@ export const dailyNewspaperService = {
       if (clippingsList.length === 0) {
         const { data: recent } = await supabase
           .from('clippings')
-          .select('id, user_id, headline, subheadline, kicker, content, summary, image_url, image_urls, highlight_list, created_at, reporter_name, district, location, state, status')
+          .select('id, user_id, headline, subheadline, kicker, content, image_url, image_urls, highlight_list, created_at, reporter_name, district, location, state, status')
           .not('status', 'eq', 'draft')
           .not('status', 'eq', 'rejected')
           .order('created_at', { ascending: false })
