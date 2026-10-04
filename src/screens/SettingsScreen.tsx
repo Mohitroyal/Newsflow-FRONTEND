@@ -110,7 +110,7 @@ export const SettingsScreen = () => {
         const token = raw ? JSON.parse(raw)?.state?.token : null;
         if (token) {
           const res = await fetch(
-            'https://news-backend-sjw6.onrender.com/api/v1/admin/stats',
+            'https://spotnewsv2.onrender.com/api/v1/admin/stats',
             { headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(6000) }
           );
           if (res.status === 200) setIsAdminAccess(true);

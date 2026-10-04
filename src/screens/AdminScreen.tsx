@@ -206,7 +206,7 @@ export const AdminScreen = () => {
         const token = raw ? JSON.parse(raw)?.state?.token : null;
         if (token) {
           const res = await fetch(
-            'https://news-backend-sjw6.onrender.com/api/v1/admin/stats',
+            'https://spotnewsv2.onrender.com/api/v1/admin/stats',
             { headers: { Authorization: 'Bearer ' + token } }
           );
           if (res.status === 200) {

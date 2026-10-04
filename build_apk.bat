@@ -52,22 +52,19 @@ if errorlevel 1 (
 
 echo [3/3] Building Android APK...
 cd android
-call gradlew.bat assembleDebug
+call gradlew.bat clean assembleDebug
 cd ..
 
 set "APK_PATH=%PROJECT_ROOT%android\app\build\outputs\apk\debug\app-debug.apk"
+set "APK_DEST=C:\Users\MOHIT\Desktop\Spotnewsv2\Spotnewsv2\APK"
 if exist "%APK_PATH%" (
   echo.
   echo ===================================================
   echo [SUCCESS] APK built successfully!
   echo Location: "%APK_PATH%"
-  copy /y "%APK_PATH%" "%PROJECT_ROOT%Spot News 24x7.apk" >nul
-  copy /y "%APK_PATH%" "%PROJECT_ROOT%Spot-News-24x7.apk" >nul
-  copy /y "%APK_PATH%" "%PROJECT_ROOT%..\Spot News 24x7.apk" >nul
-  copy /y "%APK_PATH%" "%PROJECT_ROOT%..\Spot-News-24x7.apk" >nul
-  copy /y "%APK_PATH%" "%USERPROFILE%\Desktop\Spot-News-24x7.apk" >nul
-  copy /y "%APK_PATH%" "%PROJECT_ROOT%..\APK\Spot-News-24x7.apk" >nul
-  echo Copied APK to Desktop and project folders successfully.
+  if not exist "%APK_DEST%" mkdir "%APK_DEST%"
+  copy /y "%APK_PATH%" "%APK_DEST%\Spot-News-24x7.apk" >nul
+  echo Copied APK to %APK_DEST% successfully.
 ) else (
   echo [ERROR] APK not found after build.
 )

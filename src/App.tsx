@@ -323,7 +323,7 @@ function App() {
         const token = useAuthStore.getState().token;
         if (token) {
           const res = await fetch(
-            'https://news-backend-sjw6.onrender.com/api/v1/admin/stats',
+            'https://spotnewsv2.onrender.com/api/v1/admin/stats',
             { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(6000) }
           );
           const isDbAdmin = res.status === 200;

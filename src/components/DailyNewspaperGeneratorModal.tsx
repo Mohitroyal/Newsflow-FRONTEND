@@ -2,8 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Calendar, Check, X, AlertTriangle, ArrowUp, ArrowDown,
-  Download, Image as ImageIcon, CheckCircle2, Layout, Newspaper
+  Download, Image as ImageIcon, CheckCircle2, Layout, Newspaper, Loader2
 } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+import { Browser } from '@capacitor/browser';
 import {
   dailyNewspaperService,
   type EligibleArticle,
@@ -230,6 +234,68 @@ export const DailyNewspaperGeneratorModal: React.FC<Props> = ({ isOpen, onClose,
       setErrorMsg(err?.response?.data?.detail || err?.message || 'Failed to generate Daily Newspaper PDF.');
     }
   };
+
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownloadA3PDF = async () => {
+    if (!generatedResult?.pdf_url) {
+      // Re-generate if needed
+      await handleGeneratePDF();
+      return;
+    }
+
+    setDownloading(true);
+    try {
+      const targetUrl = generatedResult.pdf_url;
+
+      if (Capacitor.isNativePlatform()) {
+        // Android: save HTML to Documents and share via native sheet
+        const res = await fetch(targetUrl);
+        const blob = await res.blob();
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = async () => {
+          let base64data = reader.result as string;
+          if (base64data.includes(',')) base64data = base64data.split(',')[1];
+          const fileName = `DailyNewspaper-${editionDate}.pdf`;
+          try {
+            if (Capacitor.getPlatform() === 'android') await Filesystem.requestPermissions();
+            const writeRes = await Filesystem.writeFile({
+              path: fileName,
+              data: base64data,
+              directory: Directory.Documents,
+              recursive: true,
+            });
+            try {
+              await Share.share({
+                title: fileName,
+                text: `Daily Newspaper A3 Edition - ${editionDate}`,
+                url: writeRes.uri || targetUrl,
+                dialogTitle: 'Open/Save Daily Newspaper Edition',
+              });
+            } catch {
+              await Browser.open({ url: targetUrl });
+            }
+            alert(`Saved to Documents as ${fileName}. Open in browser and print to get PDF.`);
+          } catch (e: any) {
+            console.error('Filesystem write error', e);
+            try { await Browser.open({ url: targetUrl }); } catch {}
+          } finally {
+            setDownloading(false);
+          }
+        };
+      } else {
+        // Web: open blob in new tab — embedded script auto-triggers print dialog (Save as PDF)
+        window.open(targetUrl, '_blank');
+        setDownloading(false);
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(`Error: ${err.message || 'Failed to open newspaper'}`);
+      setDownloading(false);
+    }
+  };
+
 
   if (!isOpen) return null;
 
@@ -612,15 +678,21 @@ export const DailyNewspaperGeneratorModal: React.FC<Props> = ({ isOpen, onClose,
               </div>
 
               <div className="flex items-center justify-center gap-4">
-                <a
-                  href={generatedResult.pdf_url}
-                  download={`DailyNewspaper-${editionDate}.pdf`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="px-6 py-3 bg-emerald-600 text-white rounded-2xl text-xs font-black hover:bg-emerald-700 transition-all shadow-lg flex items-center gap-2"
+                <button
+                  onClick={handleDownloadA3PDF}
+                  disabled={downloading}
+                  className="px-6 py-3 bg-emerald-600 text-white rounded-2xl text-xs font-black hover:bg-emerald-700 transition-all shadow-lg flex items-center gap-2 disabled:opacity-50"
                 >
-                  <Download className="w-4 h-4" /> Download A3 PDF
-                </a>
+                  {downloading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Saving to Device...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" /> Download A3 PDF
+                    </>
+                  )}
+                </button>
                 <button
                   onClick={onClose}
                   className="px-6 py-3 bg-slate-100 text-slate-700 rounded-2xl text-xs font-bold hover:bg-slate-200"

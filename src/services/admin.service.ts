@@ -155,9 +155,18 @@ export const getAdminStats = async (fromDate?: string, toDate?: string): Promise
 
   // 2. Fallback: Supabase Client Query
   try {
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    const todayISO = todayStart.toISOString();
+    // IST is UTC+5:30. IST midnight = previous day 18:30:00 UTC.
+    // We calculate today's date in IST and convert to UTC boundaries.
+    const nowUTC = new Date();
+    const istOffsetMs = 5.5 * 60 * 60 * 1000; // 5h 30m in ms
+    const nowIST = new Date(nowUTC.getTime() + istOffsetMs);
+    const istDateStr = nowIST.toISOString().slice(0, 10); // YYYY-MM-DD in IST
+
+    // IST day start/end converted to UTC
+    const todayStartIST = new Date(`${istDateStr}T00:00:00+05:30`);
+    const todayEndIST   = new Date(`${istDateStr}T23:59:59+05:30`);
+    const todayStartUTC = todayStartIST.toISOString();
+    const todayEndUTC   = todayEndIST.toISOString();
 
     const [
       usersRes,
@@ -170,7 +179,8 @@ export const getAdminStats = async (fromDate?: string, toDate?: string): Promise
       supabase
         .from('clippings')
         .select('id', { count: 'exact', head: true })
-        .gte('created_at', todayISO),
+        .gte('created_at', todayStartUTC)
+        .lte('created_at', todayEndUTC),
       supabase
         .from('clippings')
         .select('id', { count: 'exact', head: true }),
@@ -179,7 +189,8 @@ export const getAdminStats = async (fromDate?: string, toDate?: string): Promise
     const { data: activeTodayData } = await supabase
       .from('clippings')
       .select('user_id')
-      .gte('created_at', todayISO);
+      .gte('created_at', todayStartUTC)
+      .lte('created_at', todayEndUTC);
 
     const uniqueActiveToday = new Set(
       (activeTodayData ?? []).map((r: any) => r.user_id).filter(Boolean)
@@ -187,13 +198,19 @@ export const getAdminStats = async (fromDate?: string, toDate?: string): Promise
 
     const totalUsersCount = Math.max(usersRes.count ?? 0, profilesRes.count ?? 0);
 
-    // Range calculations in Supabase fallback if fromDate or toDate provided
+    // Range calculations: convert IST dates to UTC boundaries
     let rangeGenCount: number | null = null;
     let rangeActiveUsersCount: number | null = null;
     if (fromDate || toDate) {
       let rangeQuery = supabase.from('clippings').select('id, user_id', { count: 'exact' });
-      if (fromDate) rangeQuery = rangeQuery.gte('created_at', `${fromDate}T00:00:00.000Z`);
-      if (toDate) rangeQuery = rangeQuery.lte('created_at', `${toDate}T23:59:59.999Z`);
+      if (fromDate) {
+        const rangeStart = new Date(`${fromDate}T00:00:00+05:30`);
+        rangeQuery = rangeQuery.gte('created_at', rangeStart.toISOString());
+      }
+      if (toDate) {
+        const rangeEnd = new Date(`${toDate}T23:59:59+05:30`);
+        rangeQuery = rangeQuery.lte('created_at', rangeEnd.toISOString());
+      }
       const { data: rangeData, count: rangeCount } = await rangeQuery;
       rangeGenCount = rangeCount ?? (rangeData?.length ?? 0);
       rangeActiveUsersCount = new Set((rangeData ?? []).map((r: any) => r.user_id).filter(Boolean)).size;
@@ -267,10 +284,12 @@ export const getAdminClippings = async (options?: {
       .order('created_at', { ascending: false });
 
     if (options?.fromDate) {
-      query = query.gte('created_at', `${options.fromDate}T00:00:00.000Z`);
+      const s = new Date(`${options.fromDate}T00:00:00+05:30`);
+      query = query.gte('created_at', s.toISOString());
     }
     if (options?.toDate) {
-      query = query.lte('created_at', `${options.toDate}T23:59:59.999Z`);
+      const e = new Date(`${options.toDate}T23:59:59+05:30`);
+      query = query.lte('created_at', e.toISOString());
     }
     if (options?.userId) {
       query = query.eq('user_id', options.userId);
